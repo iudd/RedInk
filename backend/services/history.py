@@ -8,10 +8,18 @@ from pathlib import Path
 
 class HistoryService:
     def __init__(self):
-        self.history_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            "history"
-        )
+        # 检查是否在 HF Space 环境
+        hf_data_dir = Path('/data')
+        if hf_data_dir.exists() and hf_data_dir.is_dir():
+            # HF Space 环境，使用持久化目录
+            self.history_dir = str(hf_data_dir / 'history')
+        else:
+            # 本地环境，使用项目根目录
+            self.history_dir = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                "history"
+            )
+        
         os.makedirs(self.history_dir, exist_ok=True)
 
         self.index_file = os.path.join(self.history_dir, "index.json")

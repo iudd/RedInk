@@ -7,6 +7,7 @@ from flask import Blueprint, request, jsonify, Response, send_file
 from backend.services.outline import get_outline_service
 from backend.services.image import get_image_service
 from backend.services.history import get_history_service
+from backend.services.config import get_config_service
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -639,6 +640,22 @@ def _prepare_providers_for_response(providers: dict) -> dict:
     return result
 
 
+def _get_config_base_path():
+    """获取配置文件基础路径，支持 HF Space 持久化存储"""
+    from pathlib import Path
+    
+    # 检查是否在 HF Space 环境
+    hf_data_dir = Path('/data')
+    if hf_data_dir.exists() and hf_data_dir.is_dir():
+        # HF Space 环境，使用持久化目录
+        config_dir = hf_data_dir / 'configs'
+        config_dir.mkdir(exist_ok=True)
+        return config_dir
+    else:
+        # 本地环境，使用项目根目录
+        return Path(__file__).parent.parent.parent
+
+
 @api_bp.route('/config', methods=['GET'])
 def get_config():
     """获取当前配置"""
@@ -646,8 +663,10 @@ def get_config():
         from pathlib import Path
         import yaml
 
+        config_base = _get_config_base_path()
+        
         # 读取图片生成配置
-        image_config_path = Path(__file__).parent.parent.parent / 'image_providers.yaml'
+        image_config_path = config_base / 'image_providers.yaml'
         if image_config_path.exists():
             with open(image_config_path, 'r', encoding='utf-8') as f:
                 image_config = yaml.safe_load(f) or {}
@@ -658,7 +677,7 @@ def get_config():
             }
 
         # 读取文本生成配置
-        text_config_path = Path(__file__).parent.parent.parent / 'text_providers.yaml'
+        text_config_path = config_base / 'text_providers.yaml'
         if text_config_path.exists():
             with open(text_config_path, 'r', encoding='utf-8') as f:
                 text_config = yaml.safe_load(f) or {}
@@ -697,10 +716,11 @@ def update_config():
         import yaml
 
         data = request.get_json()
+        config_base = _get_config_base_path()
 
         # 更新图片生成配置
         if 'image_generation' in data:
-            image_config_path = Path(__file__).parent.parent.parent / 'image_providers.yaml'
+            image_config_path = config_base / 'image_providers.yaml'
 
             # 读取现有配置
             if image_config_path.exists():
@@ -738,7 +758,7 @@ def update_config():
         # 更新文本生成配置
         if 'text_generation' in data:
             text_gen_data = data['text_generation']
-            text_config_path = Path(__file__).parent.parent.parent / 'text_providers.yaml'
+            text_config_path = config_base / 'text_providers.yaml'
 
             # 读取现有配置
             if text_config_path.exists():
@@ -775,6 +795,7 @@ def update_config():
         # 清除配置缓存，确保下次使用时读取新配置
         from backend.config import Config
         Config._image_providers_config = None
+        Config._text_providers_config = None
 
         # 清除 ImageService 缓存，确保使用新配置
         from backend.services.image import reset_image_service
@@ -789,4 +810,154 @@ def update_config():
         return jsonify({
             "success": False,
             "error": f"更新配置失败: {str(e)}"
+        }), 500
+
+
+# ==================== 自定义服务商管理 API ====================
+
+@api_bp.route('/custom-providers', methods=['GET'])
+def get_custom_providers():
+    """获取所有自定义服务商配置"""
+    try:
+        config_service = get_config_service()
+        providers = config_service.get_all_providers()
+        
+        return jsonify({
+            "success": True,
+            "data": providers
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"获取自定义配置失败: {str(e)}"
+        }), 500
+
+
+@api_bp.route('/custom-providers', methods=['POST'])
+def add_custom_provider():
+    """添加自定义服务商"""
+    try:
+        data = request.get_json()
+        
+        # 验证必填字段
+        required_fields = ['provider_name', 'provider_type', 'api_key', 'base_url', 'model', 'service_type']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({
+                    "success": False,
+                    "error": f"参数错误: {field} 不能为空"
+                }), 400
+        
+        config_service = get_config_service()
+        success = config_service.add_custom_provider(
+            provider_name=data['provider_name'],
+            provider_type=data['provider_type'],
+            api_key=data['api_key'],
+            base_url=data['base_url'],
+            model=data['model'],
+            service_type=data['service_type']
+        )
+        
+        if success:
+            return jsonify({
+                "success": True,
+                "message": "自定义服务商添加成功"
+            }), 200
+        else:
+            return jsonify({
+                "success": False,
+                "error": "添加自定义服务商失败"
+            }), 500
+            
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"添加自定义服务商失败: {str(e)}"
+        }), 500
+
+
+@api_bp.route('/custom-providers/<provider_name>', methods=['DELETE'])
+def delete_custom_provider(provider_name):
+    """删除自定义服务商"""
+    try:
+        config_service = get_config_service()
+        success = config_service.delete_custom_provider(provider_name)
+        
+        if success:
+            return jsonify({
+                "success": True,
+                "message": "自定义服务商删除成功"
+            }), 200
+        else:
+            return jsonify({
+                "success": False,
+                "error": f"删除自定义服务商失败: {provider_name}"
+            }), 500
+            
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"删除自定义服务商失败: {str(e)}"
+        }), 500
+
+
+@api_bp.route('/custom-providers/<provider_name>/set-active', methods=['POST'])
+def set_active_provider(provider_name):
+    """设置激活的服务商"""
+    try:
+        data = request.get_json()
+        service_type = data.get('service_type')  # 'text' 或 'image'
+        
+        if service_type not in ['text', 'image']:
+            return jsonify({
+                "success": False,
+                "error": "参数错误: service_type 必须是 'text' 或 'image'"
+            }), 400
+        
+        config_service = get_config_service()
+        success = config_service.set_active_provider(provider_name, service_type)
+        
+        if success:
+            return jsonify({
+                "success": True,
+                "message": f"已设置 {provider_name} 为 {service_type} 服务商"
+            }), 200
+        else:
+            return jsonify({
+                "success": False,
+                "error": f"设置激活服务商失败: {provider_name}"
+            }), 500
+            
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"设置激活服务商失败: {str(e)}"
+        }), 500
+
+
+@api_bp.route('/custom-providers/test', methods=['POST'])
+def test_provider_connection():
+    """测试服务商连接"""
+    try:
+        data = request.get_json()
+        
+        # 验证必填字段
+        required_fields = ['api_key', 'base_url']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({
+                    "success": False,
+                    "error": f"参数错误: {field} 不能为空"
+                }), 400
+        
+        config_service = get_config_service()
+        result = config_service.test_provider_connection(data)
+        
+        return jsonify(result), 200
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"连接测试失败: {str(e)}"
         }), 500
