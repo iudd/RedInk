@@ -58,6 +58,8 @@ def generate_outline():
             return jsonify(result), 500
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         error_msg = str(e)
         return jsonify({
             "success": False,

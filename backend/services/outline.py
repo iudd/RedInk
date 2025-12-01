@@ -106,6 +106,8 @@ class OutlineService:
             }
 
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             error_msg = str(e)
             return {
                 "success": False,
