@@ -15,22 +15,8 @@ class OutlineService:
 
     def _load_text_config(self) -> dict:
         """加载文本生成配置"""
-        config_path = Path(__file__).parent.parent.parent / 'text_providers.yaml'
-        if config_path.exists():
-            with open(config_path, 'r', encoding='utf-8') as f:
-                return yaml.safe_load(f) or {}
-        # 默认配置
-        return {
-            'active_provider': 'google_gemini',
-            'providers': {
-                'google_gemini': {
-                    'type': 'google_gemini',
-                    'model': 'gemini-2.0-flash-exp',
-                    'temperature': 1.0,
-                    'max_output_tokens': 65535
-                }
-            }
-        }
+        from backend.config import Config
+        return Config.load_text_providers_config()
 
     def _get_client(self):
         """根据配置获取客户端"""

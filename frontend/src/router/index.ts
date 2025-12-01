@@ -5,6 +5,7 @@ import GenerateView from '../views/GenerateView.vue'
 import ResultView from '../views/ResultView.vue'
 import HistoryView from '../views/HistoryView.vue'
 import SettingsView from '../views/SettingsView.vue'
+import CustomProviderView from '../views/CustomProviderView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -38,6 +39,11 @@ const router = createRouter({
       path: '/settings',
       name: 'settings',
       component: SettingsView
+    },
+    {
+      path: '/custom-providers',
+      name: 'custom-providers',
+      component: CustomProviderView
     }
   ]
 })
