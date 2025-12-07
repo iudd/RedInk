@@ -170,6 +170,12 @@ class Config:
         # 如果没有激活的 provider，默认激活 openai
         if not loaded_config.get('active_provider'):
             loaded_config['active_provider'] = 'openai'
+            
+        # 检查激活的 provider 是否有效，如果无效则重置为 openai
+        active = loaded_config.get('active_provider')
+        if active not in providers or not providers[active].get('api_key'):
+            if 'openai' in providers and providers['openai'].get('api_key'):
+                loaded_config['active_provider'] = 'openai'
 
         cls._text_providers_config = loaded_config
         return cls._text_providers_config

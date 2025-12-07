@@ -20,9 +20,16 @@ class OutlineService:
 
     def _get_client(self):
         """根据配置获取客户端"""
-        active_provider = self.text_config.get('active_provider', 'google_gemini')
+        active_provider = self.text_config.get('active_provider', 'openai')
         providers = self.text_config.get('providers', {})
         provider_config = providers.get(active_provider, {})
+        
+        # 如果获取到的配置为空（说明 active_provider 指向的服务商不存在），尝试回退到 openai
+        if not provider_config and 'openai' in providers:
+             print(f"Warning: Active provider '{active_provider}' not found in providers. Falling back to 'openai'.")
+             active_provider = 'openai'
+             provider_config = providers['openai']
+             
         return get_text_chat_client(provider_config)
 
     def _load_prompt_template(self) -> str:
