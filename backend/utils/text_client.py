@@ -48,8 +48,15 @@ class TextChatClient:
                 "解决方案：在系统设置页面编辑文本生成服务商，填写 API Key"
             )
 
-        self.base_url = base_url or "https://api.openai.com"
-        self.chat_endpoint = f"{self.base_url}/v1/chat/completions"
+        self.base_url = (base_url or "https://api.openai.com").rstrip('/')
+        
+        # 智能处理 endpoint 拼接，避免重复的 /v1
+        if self.base_url.endswith('/v1'):
+            self.chat_endpoint = f"{self.base_url}/chat/completions"
+        elif self.base_url.endswith('/chat/completions'):
+             self.chat_endpoint = self.base_url
+        else:
+            self.chat_endpoint = f"{self.base_url}/v1/chat/completions"
 
     def _encode_image_to_base64(self, image_data: bytes) -> str:
         """将图片数据编码为 base64"""

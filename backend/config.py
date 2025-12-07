@@ -37,9 +37,19 @@ class Config:
         config_path = config_base / 'image_providers.yaml'
 
         if not config_path.exists():
+            # 默认配置（用户指定）
             cls._image_providers_config = {
                 'active_provider': os.environ.get('ACTIVE_IMAGE_PROVIDER', 'gemini'),
-                'providers': {}
+                'providers': {
+                    'gemini': {
+                        'type': 'openai_compatible',  # 使用 OpenAI 兼容模式以支持自定义 URL
+                        'api_key': os.environ.get('GEMINI_API_KEY', '1'),
+                        'base_url': os.environ.get('GEMINI_BASE_URL', 'https://mind.cnzd.eu.org/v1'), # 修正为带 /v1
+                        'model': os.environ.get('GEMINI_IMAGE_MODEL', 'gemini-3-image'),
+                        'default_size': '1024x1024',
+                        'quality': 'standard'
+                    }
+                }
             }
             return cls._image_providers_config
 
@@ -51,7 +61,7 @@ class Config:
     @classmethod
     def get_active_image_provider(cls):
         config = cls.load_image_providers_config()
-        return config.get('active_provider', 'google_genai')
+        return config.get('active_provider', 'gemini')
 
     @classmethod
     def get_image_provider_config(cls, provider_name: str = None):
@@ -61,6 +71,17 @@ class Config:
             provider_name = cls.get_active_image_provider()
 
         if provider_name not in config.get('providers', {}):
+            # 如果找不到配置，尝试返回默认的 gemini 配置
+            if provider_name == 'gemini':
+                 return {
+                    'type': 'openai_compatible',
+                    'api_key': '1',
+                    'base_url': 'https://mind.cnzd.eu.org/v1',
+                    'model': 'gemini-3-image',
+                    'default_size': '1024x1024',
+                    'quality': 'standard'
+                }
+            
             available = ', '.join(config.get('providers', {}).keys())
             raise ValueError(
                 f"未找到图片生成服务商配置: {provider_name}\n"
@@ -90,9 +111,19 @@ class Config:
         config_path = config_base / 'text_providers.yaml'
 
         if not config_path.exists():
+            # 默认配置（用户指定）
             cls._text_providers_config = {
                 'active_provider': os.environ.get('ACTIVE_TEXT_PROVIDER', 'openai'),
-                'providers': {}
+                'providers': {
+                    'openai': {
+                        'type': 'openai_compatible',
+                        'api_key': os.environ.get('OPENAI_API_KEY', '1'),
+                        'base_url': os.environ.get('OPENAI_BASE_URL', 'https://free2gpt-2api-cfwork.i13383033253-e65.workers.dev/v1'),
+                        'model': os.environ.get('OPENAI_MODEL', 'gpt-4o-mini'),
+                        'temperature': 0.7,
+                        'max_output_tokens': 4096
+                    }
+                }
             }
             return cls._text_providers_config
 

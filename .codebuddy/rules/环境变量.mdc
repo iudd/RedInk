@@ -1,0 +1,9 @@
+---
+description: python环境
+alwaysApply: false
+enabled: true
+updatedAt: 2025-11-28T12:44:55.079Z
+provider: 
+---
+
+python -m venv E:\redink_venv
