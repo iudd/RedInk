@@ -2,6 +2,7 @@
 import time
 import random
 import base64
+import json
 import requests
 from functools import wraps
 from typing import List, Optional, Union
@@ -181,6 +182,30 @@ class TextChatClient:
         try:
             result = response.json()
         except Exception as e:
+            # 尝试处理强制流式响应 (SSE)
+            response_text = response.text
+            if "data: " in response_text:
+                try:
+                    full_content = ""
+                    for line in response_text.split('\n'):
+                        line = line.strip()
+                        if line.startswith('data: ') and line != 'data: [DONE]':
+                            json_str = line[6:]  # 去掉 'data: '
+                            try:
+                                chunk = json.loads(json_str)
+                                if "choices" in chunk and len(chunk["choices"]) > 0:
+                                    delta = chunk["choices"][0].get("delta", {})
+                                    message = chunk["choices"][0].get("message", {})
+                                    content = delta.get("content") or message.get("content") or ""
+                                    full_content += content
+                            except:
+                                continue
+                    
+                    if full_content:
+                        return full_content
+                except:
+                    pass
+
             error_detail = response.text[:1000]
             raise Exception(
                 f"Text API 响应解析失败 (JSONDecodeError)\n"
