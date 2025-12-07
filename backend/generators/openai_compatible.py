@@ -138,7 +138,7 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
         if quality and model.startswith('dall-e'):
             payload["quality"] = quality
 
-        response = requests.post(url, headers=headers, json=payload, timeout=180)
+        response = requests.post(url, headers=headers, json=payload, timeout=600)
 
         if response.status_code != 200:
             error_detail = response.text[:500]
@@ -156,7 +156,17 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
                 "建议：检查API密钥、base_url和模型名称配置"
             )
 
-        result = response.json()
+        try:
+            result = response.json()
+        except Exception as e:
+            error_detail = response.text[:1000]
+            raise Exception(
+                f"OpenAI Images API 响应解析失败 (JSONDecodeError)\n"
+                f"状态码: {response.status_code}\n"
+                f"原始响应内容: {error_detail}\n"
+                f"请求地址: {url}\n"
+                "可能原因：API 返回了非 JSON 格式数据（可能是排队信息或 HTML 错误）"
+            )
 
         if "data" not in result or len(result["data"]) == 0:
             raise ValueError(
