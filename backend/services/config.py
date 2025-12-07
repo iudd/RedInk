@@ -10,7 +10,7 @@ class ConfigService:
     """配置管理服务，支持持久化存储"""
     
     def __init__(self):
-        self.config_dir = Path(os.environ.get('CONFIG_DIR', '/app/configs'))
+        self.config_dir = Config._get_config_base_path()
         self.config_dir.mkdir(exist_ok=True)
         self.custom_config_file = self.config_dir / 'custom_providers.json'
         self._config_cache = {}
