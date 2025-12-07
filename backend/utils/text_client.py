@@ -178,7 +178,17 @@ class TextChatClient:
                 "建议：检查 TEXT_API_KEY 和 TEXT_API_BASE_URL 配置"
             )
 
-        result = response.json()
+        try:
+            result = response.json()
+        except Exception as e:
+            error_detail = response.text[:1000]
+            raise Exception(
+                f"Text API 响应解析失败 (JSONDecodeError)\n"
+                f"状态码: {response.status_code}\n"
+                f"原始响应内容: {error_detail}\n"
+                f"请求地址: {self.chat_endpoint}\n"
+                "可能原因：API 返回了 HTML 错误页面或非 JSON 格式数据"
+            )
 
         # 提取生成的文本
         if "choices" in result and len(result["choices"]) > 0:
