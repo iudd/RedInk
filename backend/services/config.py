@@ -245,6 +245,181 @@ class ConfigService:
         with open(file_path, 'w', encoding='utf-8') as f:
             yaml.dump(final_config, f, allow_unicode=True, default_flow_style=False)
 
+    def get_all_providers(self) -> Dict[str, Any]:
+        """获取所有可用服务商"""
+        if self.supabase:
+            return self._get_all_providers_supabase()
+        else:
+            return self._get_all_providers_file()
+
+    def add_custom_provider(self, provider_name: str, provider_type: str, api_key: str, base_url: str, model: str, service_type: str = "text") -> bool:
+        """添加自定义服务商"""
+        if self.supabase:
+            return self._add_custom_provider_supabase(provider_name, provider_type, api_key, base_url, model, service_type)
+        else:
+            return self._add_custom_provider_file(provider_name, provider_type, api_key, base_url, model, service_type)
+
+    def delete_custom_provider(self, provider_name: str) -> bool:
+        """删除自定义服务商"""
+        if self.supabase:
+            return self._delete_custom_provider_supabase(provider_name)
+        else:
+            return self._delete_custom_provider_file(provider_name)
+
+    # ==================== Supabase 扩展实现 ====================
+
+    def _get_all_providers_supabase(self) -> Dict[str, Any]:
+        try:
+            response = self.supabase.table('configurations').select('*').execute()
+            rows = response.data
+            
+            custom_providers = {}
+            active_text = "openai"
+            active_image = "gemini"
+            
+            for row in rows:
+                name = row['provider_name']
+                config_type = row['config_type']
+                
+                # 统一格式
+                provider_data = {
+                    "type": row['provider_type'],
+                    "api_key": row['api_key'],
+                    "base_url": row.get('base_url'),
+                    "model": row.get('model'),
+                    "service_type": "text" if config_type == 'text_generation' else "image",
+                    "created_at": row.get('created_at')
+                }
+                custom_providers[name] = provider_data
+                
+                if row.get('is_active'):
+                    if config_type == 'text_generation':
+                        active_text = name
+                    elif config_type == 'image_generation':
+                        active_image = name
+            
+            return {
+                "custom_providers": custom_providers,
+                "active_text_provider": active_text,
+                "active_image_provider": active_image
+            }
+        except Exception as e:
+            print(f"Supabase 获取所有服务商失败: {e}")
+            return self._get_all_providers_file()
+
+    def _add_custom_provider_supabase(self, provider_name: str, provider_type: str, api_key: str, base_url: str, model: str, service_type: str) -> bool:
+        try:
+            config_type = 'text_generation' if service_type == 'text' else 'image_generation'
+            
+            data = {
+                'config_type': config_type,
+                'provider_name': provider_name,
+                'provider_type': provider_type,
+                'api_key': api_key,
+                'base_url': base_url,
+                'model': model,
+                'is_active': False # 默认不激活
+            }
+            
+            self.supabase.table('configurations').upsert(
+                data, 
+                on_conflict='config_type,provider_name'
+            ).execute()
+            
+            Config.reload_config()
+            return True
+        except Exception as e:
+            print(f"Supabase 添加服务商失败: {e}")
+            return False
+
+    def _delete_custom_provider_supabase(self, provider_name: str) -> bool:
+        try:
+            # 删除时可能需要知道 config_type，但这里只给了 name。
+            # 尝试删除匹配 name 的记录 (假设 name 是全局唯一的，或者删除所有匹配的)
+            # 为了安全，先查询
+            self.supabase.table('configurations').delete().eq('provider_name', provider_name).execute()
+            Config.reload_config()
+            return True
+        except Exception as e:
+            print(f"Supabase 删除服务商失败: {e}")
+            return False
+
+    # ==================== 文件系统扩展实现 ====================
+
+    def _get_all_providers_file(self) -> Dict[str, Any]:
+        # 从 YAML 读取并合并
+        full_config = self._get_full_config_file()
+        text_conf = full_config.get('text_generation', {})
+        image_conf = full_config.get('image_generation', {})
+        
+        custom_providers = {}
+        
+        for name, conf in text_conf.get('providers', {}).items():
+            conf['service_type'] = 'text'
+            custom_providers[name] = conf
+            
+        for name, conf in image_conf.get('providers', {}).items():
+            conf['service_type'] = 'image'
+            custom_providers[name] = conf
+            
+        return {
+            "custom_providers": custom_providers,
+            "active_text_provider": text_conf.get('active_provider', 'openai'),
+            "active_image_provider": image_conf.get('active_provider', 'gemini')
+        }
+
+    def _add_custom_provider_file(self, provider_name: str, provider_type: str, api_key: str, base_url: str, model: str, service_type: str) -> bool:
+        try:
+            import yaml
+            filename = 'text_providers.yaml' if service_type == 'text' else 'image_providers.yaml'
+            file_path = self.config_dir / filename
+            
+            config = {}
+            if file_path.exists():
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    config = yaml.safe_load(f) or {}
+            
+            if 'providers' not in config:
+                config['providers'] = {}
+                
+            config['providers'][provider_name] = {
+                'type': provider_type,
+                'api_key': api_key,
+                'base_url': base_url,
+                'model': model
+            }
+            
+            with open(file_path, 'w', encoding='utf-8') as f:
+                yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
+                
+            Config.reload_config()
+            return True
+        except Exception as e:
+            print(f"文件添加服务商失败: {e}")
+            return False
+
+    def _delete_custom_provider_file(self, provider_name: str) -> bool:
+        try:
+            import yaml
+            # 尝试从两个文件中删除
+            for filename in ['text_providers.yaml', 'image_providers.yaml']:
+                file_path = self.config_dir / filename
+                if file_path.exists():
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        config = yaml.safe_load(f) or {}
+                    
+                    if 'providers' in config and provider_name in config['providers']:
+                        del config['providers'][provider_name]
+                        
+                        with open(file_path, 'w', encoding='utf-8') as f:
+                            yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
+            
+            Config.reload_config()
+            return True
+        except Exception as e:
+            print(f"文件删除服务商失败: {e}")
+            return False
+
     def test_provider_connection(self, provider_config: Dict[str, Any]) -> Dict[str, Any]:
         """测试服务商连接"""
         try:
