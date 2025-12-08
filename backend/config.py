@@ -1,6 +1,10 @@
 import yaml
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+# 加载 .env 文件
+load_dotenv()
 
 
 class Config:
@@ -33,51 +37,29 @@ class Config:
         if cls._image_providers_config is not None:
             return cls._image_providers_config
 
-        config_base = cls._get_config_base_path()
-        config_path = config_base / 'image_providers.yaml'
-
-        # 默认配置定义
-        default_gemini_config = {
-            'type': 'openai_compatible',
-            'api_key': os.environ.get('GEMINI_API_KEY', '1'),
-            'base_url': os.environ.get('GEMINI_BASE_URL', 'https://mind.cnzd.eu.org/v1'),
-            'model': os.environ.get('GEMINI_IMAGE_MODEL', 'gemini-3-image'),
-            'default_size': '1024x1024',
-            'quality': 'standard'
-        }
-
-        if not config_path.exists():
-            cls._image_providers_config = {
-                'active_provider': os.environ.get('ACTIVE_IMAGE_PROVIDER', 'gemini'),
-                'providers': {
-                    'gemini': default_gemini_config
-                }
+        # 使用 ConfigService 加载配置（支持 Supabase）
+        from backend.services.config import get_config_service
+        full_config = get_config_service().get_full_config()
+        
+        cls._image_providers_config = full_config.get('image_generation', {
+            'active_provider': 'gemini',
+            'providers': {}
+        })
+        
+        # 确保有默认配置（如果为空）
+        if not cls._image_providers_config.get('providers'):
+             default_gemini_config = {
+                'type': 'openai_compatible',
+                'api_key': os.environ.get('GEMINI_API_KEY', '1'),
+                'base_url': os.environ.get('GEMINI_BASE_URL', 'https://mind.cnzd.eu.org/v1'),
+                'model': os.environ.get('GEMINI_IMAGE_MODEL', 'gemini-3-image'),
+                'default_size': '1024x1024',
+                'quality': 'standard'
             }
-            return cls._image_providers_config
+             cls._image_providers_config['providers'] = {'gemini': default_gemini_config}
+             if not cls._image_providers_config.get('active_provider'):
+                 cls._image_providers_config['active_provider'] = 'gemini'
 
-        with open(config_path, 'r', encoding='utf-8') as f:
-            loaded_config = yaml.safe_load(f) or {}
-            
-        # 确保 providers 存在
-        if 'providers' not in loaded_config:
-            loaded_config['providers'] = {}
-            
-        # 检查并注入默认 gemini 配置（如果不存在或缺少 api_key）
-        providers = loaded_config['providers']
-        if 'gemini' not in providers or not providers['gemini'].get('api_key'):
-            # 如果用户没有配置 gemini 或配置无效，使用默认配置
-            # 但保留用户可能设置的其他字段（如果存在）
-            user_gemini = providers.get('gemini', {})
-            # 合并配置：默认配置覆盖缺失值，但用户配置优先（除了 api_key 为空的情况）
-            merged_gemini = default_gemini_config.copy()
-            merged_gemini.update({k: v for k, v in user_gemini.items() if v})
-            providers['gemini'] = merged_gemini
-            
-        # 如果没有激活的 provider，默认激活 gemini
-        if not loaded_config.get('active_provider'):
-            loaded_config['active_provider'] = 'gemini'
-            
-        cls._image_providers_config = loaded_config
         return cls._image_providers_config
 
     @classmethod
@@ -99,7 +81,7 @@ class Config:
                 f"可用的服务商: {available}\n"
                 "解决方案：\n"
                 "1. 在系统设置页面添加图片生成服务商\n"
-                "2. 或检查 image_providers.yaml 文件"
+                "2. 或检查配置存储"
             )
 
         provider_config = config['providers'][provider_name].copy()
@@ -129,55 +111,29 @@ class Config:
         if cls._text_providers_config is not None:
             return cls._text_providers_config
 
-        config_base = cls._get_config_base_path()
-        config_path = config_base / 'text_providers.yaml'
+        # 使用 ConfigService 加载配置（支持 Supabase）
+        from backend.services.config import get_config_service
+        full_config = get_config_service().get_full_config()
+        
+        cls._text_providers_config = full_config.get('text_generation', {
+            'active_provider': 'openai',
+            'providers': {}
+        })
 
-        # 默认配置定义
-        default_openai_config = {
-            'type': 'openai_compatible',
-            'api_key': os.environ.get('OPENAI_API_KEY', '1'),
-            'base_url': os.environ.get('OPENAI_BASE_URL', 'https://free2gpt-2api-cfwork.i13383033253-e65.workers.dev/v1'),
-            'model': os.environ.get('OPENAI_MODEL', 'gpt-4o-mini'),
-            'temperature': 0.7,
-            'max_output_tokens': 4096
-        }
-
-        if not config_path.exists():
-            cls._text_providers_config = {
-                'active_provider': os.environ.get('ACTIVE_TEXT_PROVIDER', 'openai'),
-                'providers': {
-                    'openai': default_openai_config
-                }
+        # 确保有默认配置（如果为空）
+        if not cls._text_providers_config.get('providers'):
+            default_openai_config = {
+                'type': 'openai_compatible',
+                'api_key': os.environ.get('OPENAI_API_KEY', '1'),
+                'base_url': os.environ.get('OPENAI_BASE_URL', 'https://free2gpt-2api-cfwork.i13383033253-e65.workers.dev/v1'),
+                'model': os.environ.get('OPENAI_MODEL', 'gpt-4o-mini'),
+                'temperature': 0.7,
+                'max_output_tokens': 4096
             }
-            return cls._text_providers_config
+            cls._text_providers_config['providers'] = {'openai': default_openai_config}
+            if not cls._text_providers_config.get('active_provider'):
+                cls._text_providers_config['active_provider'] = 'openai'
 
-        with open(config_path, 'r', encoding='utf-8') as f:
-            loaded_config = yaml.safe_load(f) or {}
-            
-        # 确保 providers 存在
-        if 'providers' not in loaded_config:
-            loaded_config['providers'] = {}
-            
-        # 检查并注入默认 openai 配置（如果不存在或缺少 api_key）
-        providers = loaded_config['providers']
-        if 'openai' not in providers or not providers['openai'].get('api_key'):
-            # 如果用户没有配置 openai 或配置无效，使用默认配置
-            user_openai = providers.get('openai', {})
-            merged_openai = default_openai_config.copy()
-            merged_openai.update({k: v for k, v in user_openai.items() if v})
-            providers['openai'] = merged_openai
-            
-        # 如果没有激活的 provider，默认激活 openai
-        if not loaded_config.get('active_provider'):
-            loaded_config['active_provider'] = 'openai'
-            
-        # 检查激活的 provider 是否有效，如果无效则重置为 openai
-        active = loaded_config.get('active_provider')
-        if active not in providers or not providers[active].get('api_key'):
-            if 'openai' in providers and providers['openai'].get('api_key'):
-                loaded_config['active_provider'] = 'openai'
-
-        cls._text_providers_config = loaded_config
         return cls._text_providers_config
 
     @classmethod

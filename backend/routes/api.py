@@ -642,52 +642,19 @@ def _prepare_providers_for_response(providers: dict) -> dict:
     return result
 
 
-def _get_config_base_path():
-    """获取配置文件基础路径，支持 HF Space 持久化存储"""
-    from pathlib import Path
-    
-    # 检查是否在 HF Space 环境
-    hf_data_dir = Path('/data')
-    if hf_data_dir.exists() and hf_data_dir.is_dir():
-        # HF Space 环境，使用持久化目录
-        config_dir = hf_data_dir / 'configs'
-        config_dir.mkdir(exist_ok=True)
-        return config_dir
-    else:
-        # 本地环境，使用项目根目录
-        return Path(__file__).parent.parent.parent
+
 
 
 @api_bp.route('/config', methods=['GET'])
 def get_config():
     """获取当前配置"""
     try:
-        from pathlib import Path
-        import yaml
+        config_service = get_config_service()
+        full_config = config_service.get_full_config()
 
-        config_base = _get_config_base_path()
-        
-        # 读取图片生成配置
-        image_config_path = config_base / 'image_providers.yaml'
-        if image_config_path.exists():
-            with open(image_config_path, 'r', encoding='utf-8') as f:
-                image_config = yaml.safe_load(f) or {}
-        else:
-            image_config = {
-                'active_provider': 'google_genai',
-                'providers': {}
-            }
-
-        # 读取文本生成配置
-        text_config_path = config_base / 'text_providers.yaml'
-        if text_config_path.exists():
-            with open(text_config_path, 'r', encoding='utf-8') as f:
-                text_config = yaml.safe_load(f) or {}
-        else:
-            text_config = {
-                'active_provider': 'google_gemini',
-                'providers': {}
-            }
+        # 脱敏处理
+        text_config = full_config.get('text_generation', {})
+        image_config = full_config.get('image_generation', {})
 
         return jsonify({
             "success": True,
@@ -714,90 +681,24 @@ def get_config():
 def update_config():
     """更新配置"""
     try:
-        from pathlib import Path
-        import yaml
-
         data = request.get_json()
-        config_base = _get_config_base_path()
+        config_service = get_config_service()
+        
+        success = config_service.update_full_config(data)
+        
+        if success:
+            return jsonify({"success": True}), 200
+        else:
+            return jsonify({
+                "success": False, 
+                "error": "保存配置失败"
+            }), 500
 
-        # 更新图片生成配置
-        if 'image_generation' in data:
-            image_config_path = config_base / 'image_providers.yaml'
-
-            # 读取现有配置
-            if image_config_path.exists():
-                with open(image_config_path, 'r', encoding='utf-8') as f:
-                    image_config = yaml.safe_load(f) or {}
-            else:
-                image_config = {'providers': {}}
-
-            image_gen_data = data['image_generation']
-            if 'active_provider' in image_gen_data:
-                image_config['active_provider'] = image_gen_data['active_provider']
-
-            if 'providers' in image_gen_data:
-                # 合并 providers，保留未更新的 api_key
-                existing_providers = image_config.get('providers', {})
-                new_providers = image_gen_data['providers']
-
-                for name, new_config in new_providers.items():
-                    # 如果新配置的 api_key 是 True 或空，保留原有的
-                    if new_config.get('api_key') in [True, False, '', None]:
-                        if name in existing_providers and existing_providers[name].get('api_key'):
-                            new_config['api_key'] = existing_providers[name]['api_key']
-                        else:
-                            new_config.pop('api_key', None)
-                    # 移除不需要保存的字段
-                    new_config.pop('api_key_env', None)
-                    new_config.pop('api_key_masked', None)
-
-                image_config['providers'] = new_providers
-
-            # 保存配置
-            with open(image_config_path, 'w', encoding='utf-8') as f:
-                yaml.dump(image_config, f, allow_unicode=True, default_flow_style=False)
-
-        # 更新文本生成配置
-        if 'text_generation' in data:
-            text_gen_data = data['text_generation']
-            text_config_path = config_base / 'text_providers.yaml'
-
-            # 读取现有配置
-            if text_config_path.exists():
-                with open(text_config_path, 'r', encoding='utf-8') as f:
-                    text_config = yaml.safe_load(f) or {}
-            else:
-                text_config = {'providers': {}}
-
-            if 'active_provider' in text_gen_data:
-                text_config['active_provider'] = text_gen_data['active_provider']
-
-            if 'providers' in text_gen_data:
-                # 合并 providers，保留未更新的 api_key
-                existing_providers = text_config.get('providers', {})
-                new_providers = text_gen_data['providers']
-
-                for name, new_config in new_providers.items():
-                    # 如果新配置的 api_key 是 True 或空，保留原有的
-                    if new_config.get('api_key') in [True, False, '', None]:
-                        if name in existing_providers and existing_providers[name].get('api_key'):
-                            new_config['api_key'] = existing_providers[name]['api_key']
-                        else:
-                            new_config.pop('api_key', None)
-                    # 移除不需要保存的字段
-                    new_config.pop('api_key_env', None)
-                    new_config.pop('api_key_masked', None)
-
-                text_config['providers'] = new_providers
-
-            # 保存配置
-            with open(text_config_path, 'w', encoding='utf-8') as f:
-                yaml.dump(text_config, f, allow_unicode=True, default_flow_style=False)
-
-        # 清除配置缓存，确保下次使用时读取新配置
-        from backend.config import Config
-        Config._image_providers_config = None
-        Config._text_providers_config = None
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"更新配置异常: {str(e)}"
+        }), 500
 
         # 清除 ImageService 缓存，确保使用新配置
         from backend.services.image import reset_image_service
