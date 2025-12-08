@@ -14,8 +14,12 @@ class ConfigService:
         self.config_dir.mkdir(exist_ok=True)
         
         # 尝试初始化 Supabase 客户端
-        from backend.utils.supabase_client import get_supabase_client
-        self.supabase = get_supabase_client()
+        try:
+            from backend.utils.supabase_client import get_supabase_client
+            self.supabase = get_supabase_client()
+        except Exception as e:
+            print(f"ConfigService: Supabase 初始化失败 (将使用本地文件): {e}")
+            self.supabase = None
         
         if self.supabase:
             print("ConfigService: 使用 Supabase 存储")
