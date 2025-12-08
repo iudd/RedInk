@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Dict, Any, Optional
 from backend.config import Config
-
+import traceback
 
 class ConfigService:
     """配置管理服务，支持持久化存储（文件系统或 Supabase）"""
@@ -84,6 +84,7 @@ class ConfigService:
             }
         except Exception as e:
             print(f"Supabase 获取配置失败: {e}")
+            traceback.print_exc()
             # 降级到文件或返回空
             return self._get_full_config_file()
 
@@ -102,6 +103,7 @@ class ConfigService:
             return True
         except Exception as e:
             print(f"Supabase 更新配置失败: {e}")
+            traceback.print_exc()
             return False
 
     def _save_provider_group_supabase(self, config_type: str, group_data: Dict[str, Any]):
@@ -145,34 +147,42 @@ class ConfigService:
     # ==================== 文件系统实现 (原有逻辑封装) ====================
 
     def _get_full_config_file(self) -> Dict[str, Any]:
-        import yaml
-        
-        # 读取图片配置
-        image_config_path = self.config_dir / 'image_providers.yaml'
-        if image_config_path.exists():
-            with open(image_config_path, 'r', encoding='utf-8') as f:
-                image_config = yaml.safe_load(f) or {}
-        else:
-            image_config = {'active_provider': 'gemini', 'providers': {}}
+        try:
+            import yaml
+            
+            # 读取图片配置
+            image_config_path = self.config_dir / 'image_providers.yaml'
+            if image_config_path.exists():
+                with open(image_config_path, 'r', encoding='utf-8') as f:
+                    image_config = yaml.safe_load(f) or {}
+            else:
+                image_config = {'active_provider': 'gemini', 'providers': {}}
 
-        # 读取文本配置
-        text_config_path = self.config_dir / 'text_providers.yaml'
-        if text_config_path.exists():
-            with open(text_config_path, 'r', encoding='utf-8') as f:
-                text_config = yaml.safe_load(f) or {}
-        else:
-            text_config = {'active_provider': 'openai', 'providers': {}}
+            # 读取文本配置
+            text_config_path = self.config_dir / 'text_providers.yaml'
+            if text_config_path.exists():
+                with open(text_config_path, 'r', encoding='utf-8') as f:
+                    text_config = yaml.safe_load(f) or {}
+            else:
+                text_config = {'active_provider': 'openai', 'providers': {}}
 
-        return {
-            "text_generation": {
-                "active_provider": text_config.get('active_provider', ''),
-                "providers": text_config.get('providers', {})
-            },
-            "image_generation": {
-                "active_provider": image_config.get('active_provider', ''),
-                "providers": image_config.get('providers', {})
+            return {
+                "text_generation": {
+                    "active_provider": text_config.get('active_provider', ''),
+                    "providers": text_config.get('providers', {})
+                },
+                "image_generation": {
+                    "active_provider": image_config.get('active_provider', ''),
+                    "providers": image_config.get('providers', {})
+                }
             }
-        }
+        except Exception as e:
+            print(f"文件加载配置失败: {e}")
+            traceback.print_exc()
+            return {
+                "text_generation": {"active_provider": "openai", "providers": {}},
+                "image_generation": {"active_provider": "gemini", "providers": {}}
+            }
 
     def _update_full_config_file(self, data: Dict[str, Any]) -> bool:
         import yaml
@@ -190,6 +200,7 @@ class ConfigService:
             return True
         except Exception as e:
             print(f"文件保存配置失败: {e}")
+            traceback.print_exc()
             return False
 
     def _save_yaml_file(self, filename: str, new_data: Dict[str, Any]):

@@ -671,6 +671,8 @@ def get_config():
         })
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({
             "success": False,
             "error": f"获取配置失败: {str(e)}"
