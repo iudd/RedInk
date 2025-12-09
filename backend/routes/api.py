@@ -331,32 +331,34 @@ def storage_check():
 @api_bp.route('/config/storage-mode', methods=['POST'])
 def switch_storage_mode():
     """切换存储模式"""
-    data = request.get_json()
-    mode = data.get('mode')
-    
-    if mode not in ['supabase', 'local']:
-        return jsonify({"success": False, "error": "Invalid mode. Use 'supabase' or 'local'"}), 400
+    try:
+        data = request.get_json()
+        mode = data.get('mode')
         
-    config_service = get_config_service()
-    history_service = get_history_service()
-    
-    success_config = config_service.set_storage_mode(mode)
-    success_history = history_service.set_storage_mode(mode)
-    
-    if mode == 'supabase' and (not success_config or not success_history):
+        if mode not in ['supabase', 'local']:
+            return jsonify({"success": False, "error": "Invalid mode. Use 'supabase' or 'local'"}), 400
+            
+        config_service = get_config_service()
+        history_service = get_history_service()
+        
+        success_config = config_service.set_storage_mode(mode)
+        success_history = history_service.set_storage_mode(mode)
+        
+        if mode == 'supabase' and (not success_config or not success_history):
+            return jsonify({
+                "success": False, 
+                "error": "Failed to switch to Supabase. Check connection or credentials."
+            }), 500
+            
         return jsonify({
-            "success": False, 
-            "error": "Failed to switch to Supabase. Check connection or credentials."
-        }), 500
-        
-    return jsonify({
-        "success": True,
-        "mode": mode,
-        "details": {
-            "config_service": success_config,
-            "history_service": success_history
-        }
-    })
+            "success": True,
+            "mode": mode,
+            "details": {
+                "config_service": success_config,
+                "history_service": success_history
+            }
+        })
+    except Exception as e:
         return jsonify({
             "success": False,
             "error": str(e)
