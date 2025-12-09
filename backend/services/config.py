@@ -54,6 +54,20 @@ class ConfigService:
             rows = response.data
             print(f"ConfigService: 获取到 {len(rows)} 条配置记录")
             
+            # 如果 Supabase 为空，尝试从本地文件迁移
+            if not rows:
+                print("ConfigService: Supabase 配置为空，尝试从本地文件迁移...")
+                local_config = self._get_full_config_file()
+                
+                # 只有当本地配置非空时才迁移
+                if local_config.get('text_generation', {}).get('providers') or \
+                   local_config.get('image_generation', {}).get('providers'):
+                    print("ConfigService: 正在将本地配置迁移到 Supabase...")
+                    self._update_full_config_supabase(local_config)
+                    return local_config
+                else:
+                    print("ConfigService: 本地配置也为空，跳过迁移")
+
             text_providers = {}
             image_providers = {}
             active_text = ""
@@ -290,6 +304,19 @@ class ConfigService:
             response = self.supabase.table('configurations').select('*').execute()
             rows = response.data
             print(f"ConfigService: 从 Supabase 获取到 {len(rows) if rows else 0} 条配置记录")
+            
+            # 如果 Supabase 为空，尝试从本地文件迁移
+            if not rows:
+                print("ConfigService: Supabase 服务商列表为空，尝试从本地文件迁移...")
+                local_config = self._get_full_config_file()
+                
+                if local_config.get('text_generation', {}).get('providers') or \
+                   local_config.get('image_generation', {}).get('providers'):
+                    print("ConfigService: 正在将本地配置迁移到 Supabase (触发自列表查询)...")
+                    self._update_full_config_supabase(local_config)
+                    # 重新查询
+                    response = self.supabase.table('configurations').select('*').execute()
+                    rows = response.data
             
             custom_providers = {}
             active_text = "openai"
