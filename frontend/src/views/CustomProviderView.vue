@@ -337,19 +337,42 @@ async function switchStorageMode() {
   if (!storageStatus.value) return
   
   const currentMode = storageStatus.value.mode
+  const targetMode = currentMode === 'supabase' ? 'local' : 'supabase'
   
-  // 如果当前是 local，要切换到 supabase
-  if (currentMode === 'local') {
-    showSupabaseDialog.value = true
+  if (targetMode === 'local') {
+    if (!confirm('确定要切换到本地文件存储吗？')) return
+    await executeSwitch('local')
     return
   }
   
-  // 如果当前是 supabase，要切换到 local
-  if (!confirm('确定要切换到本地文件存储吗？')) {
-    return
+  // 目标是 Supabase，先尝试直接切换（使用环境变量）
+  switchingStorage.value = true
+  try {
+    const response = await fetch('/api/config/storage-mode', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ mode: 'supabase' })
+    })
+    
+    const result = await response.json()
+    if (result.success) {
+      alert('已成功切换到 Supabase 存储模式')
+      await loadConfig()
+    } else {
+      // 如果失败，询问用户是否手动输入凭证
+      // 只有当错误信息暗示凭证缺失或连接失败时才建议
+      const errorMsg = result.error || '未知错误'
+      if (confirm(`切换失败: ${errorMsg}\n\n是否手动输入 Supabase 凭证？`)) {
+        showSupabaseDialog.value = true
+      }
+    }
+  } catch (error) {
+    alert('切换请求失败: ' + String(error))
+  } finally {
+    switchingStorage.value = false
   }
-  
-  await executeSwitch('local')
 }
 
 // 确认切换到 Supabase
@@ -388,7 +411,7 @@ async function executeSwitch(mode: string, url?: string, key?: string) {
     } else {
       alert('切换失败: ' + (result.error || '未知错误'))
       // 如果失败且是尝试切换到 Supabase，重新显示对话框以便重试
-      if (mode === 'supabase') {
+      if (mode === 'supabase' && url && key) {
         showSupabaseDialog.value = true
       }
     }

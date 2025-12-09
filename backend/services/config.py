@@ -32,7 +32,7 @@ class ConfigService:
             print("ConfigService: 使用本地文件存储")
             self.enable_supabase = False
 
-    def set_storage_mode(self, mode: str, url: Optional[str] = None, key: Optional[str] = None) -> bool:
+    def set_storage_mode(self, mode: str, url: Optional[str] = None, key: Optional[str] = None) -> tuple[bool, str]:
         """设置存储模式: 'supabase' 或 'local'"""
         if mode == 'supabase':
             # 如果提供了新的凭证，强制重新初始化
@@ -40,26 +40,33 @@ class ConfigService:
                 try:
                     from backend.utils.supabase_client import init_supabase_client
                     self.supabase = init_supabase_client(url, key)
-                except:
-                    pass
+                except Exception as e:
+                    return False, f"Failed to init with provided credentials: {str(e)}"
             
             if not self.supabase:
+                # 检查环境变量
+                if not os.environ.get("SUPABASE_URL") or not os.environ.get("SUPABASE_KEY"):
+                     return False, "Missing SUPABASE_URL or SUPABASE_KEY environment variables."
+
                 # 尝试重新初始化
                 try:
                     from backend.utils.supabase_client import get_supabase_client
                     self.supabase = get_supabase_client()
-                except:
-                    pass
+                except ImportError:
+                    return False, "Supabase library not installed."
+                except Exception as e:
+                    return False, f"Connection failed: {str(e)}"
             
             if self.supabase:
                 self.enable_supabase = True
                 print("ConfigService: 已切换到 Supabase 存储")
-                return True
-            return False
+                return True, "Success"
+            
+            return False, "Failed to initialize Supabase client (Unknown reason)."
         else:
             self.enable_supabase = False
             print("ConfigService: 已切换到本地文件存储")
-            return True
+            return True, "Success"
 
     def get_full_config(self) -> Dict[str, Any]:
         """获取完整配置（用于 API 返回）"""

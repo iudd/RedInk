@@ -343,14 +343,20 @@ def switch_storage_mode():
         config_service = get_config_service()
         history_service = get_history_service()
         
-        success_config = config_service.set_storage_mode(mode, supabase_url, supabase_key)
-        success_history = history_service.set_storage_mode(mode, supabase_url, supabase_key)
+        success_config, msg_config = config_service.set_storage_mode(mode, supabase_url, supabase_key)
+        success_history, msg_history = history_service.set_storage_mode(mode, supabase_url, supabase_key)
         
-        if mode == 'supabase' and (not success_config or not success_history):
-            return jsonify({
-                "success": False, 
-                "error": "Failed to switch to Supabase. Check connection or credentials."
-            }), 500
+        if mode == 'supabase':
+            if not success_config:
+                return jsonify({
+                    "success": False, 
+                    "error": f"Config Service switch failed: {msg_config}"
+                }), 500
+            if not success_history:
+                return jsonify({
+                    "success": False, 
+                    "error": f"History Service switch failed: {msg_history}"
+                }), 500
             
         return jsonify({
             "success": True,
