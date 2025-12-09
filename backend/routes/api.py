@@ -308,6 +308,25 @@ def health_check():
     }), 200
 
 
+@api_bp.route('/health/storage', methods=['GET'])
+def storage_check():
+    """检查存储状态"""
+    try:
+        config_service = get_config_service()
+        history_service = get_history_service()
+        
+        return jsonify({
+            "success": True,
+            "config_storage": "supabase" if config_service.supabase else "local",
+            "history_storage": "supabase" if history_service.supabase else "local"
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
 # ==================== 历史记录相关 API ====================
 
 @api_bp.route('/history', methods=['POST'])

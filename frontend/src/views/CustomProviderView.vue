@@ -3,6 +3,9 @@
     <div class="page-header">
       <h1 class="page-title">自定义服务商配置</h1>
       <p class="page-subtitle">添加自定义的OpenAI兼容AI服务商</p>
+      <div v-if="storageStatus" class="storage-status" :class="storageStatus.config_storage">
+        存储模式: {{ storageStatus.config_storage === 'supabase' ? '☁️ Supabase 云端' : '📂 本地文件' }}
+      </div>
     </div>
 
     <div v-if="loading" class="loading-container">
@@ -215,6 +218,7 @@ const loading = ref(true)
 const saving = ref(false)
 const testingConnection = ref(false)
 const testResult = ref<any>(null)
+const storageStatus = ref<any>(null)
 
 // 自定义服务商列表
 const customProviders = ref<any[]>([])
@@ -236,9 +240,19 @@ const newProvider = ref({
 // 加载配置
 async function loadConfig() {
   try {
-    const response = await fetch('/api/custom-providers')
-    const result = await response.json()
+    // 并行获取配置和存储状态
+    const [configRes, statusRes] = await Promise.all([
+      fetch('/api/custom-providers'),
+      fetch('/api/health/storage')
+    ])
     
+    const result = await configRes.json()
+    const statusResult = await statusRes.json()
+    
+    if (statusResult.success) {
+      storageStatus.value = statusResult
+    }
+
     if (result.success) {
       const data = result.data
       
@@ -431,6 +445,25 @@ onMounted(() => {
 .page-subtitle {
   font-size: 1rem;
   color: #6b7280;
+}
+
+.storage-status {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.storage-status.supabase {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.storage-status.local {
+  background-color: #f3f4f6;
+  color: #4b5563;
 }
 
 .loading-container {

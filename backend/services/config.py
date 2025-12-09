@@ -286,33 +286,36 @@ class ConfigService:
 
     def _get_all_providers_supabase(self) -> Dict[str, Any]:
         try:
+            print("ConfigService: 正在从 Supabase 获取所有服务商...")
             response = self.supabase.table('configurations').select('*').execute()
             rows = response.data
+            print(f"ConfigService: 从 Supabase 获取到 {len(rows) if rows else 0} 条配置记录")
             
             custom_providers = {}
             active_text = "openai"
             active_image = "gemini"
             
-            for row in rows:
-                name = row['provider_name']
-                config_type = row['config_type']
-                
-                # 统一格式
-                provider_data = {
-                    "type": row['provider_type'],
-                    "api_key": row['api_key'],
-                    "base_url": row.get('base_url'),
-                    "model": row.get('model'),
-                    "service_type": "text" if config_type == 'text_generation' else "image",
-                    "created_at": row.get('created_at')
-                }
-                custom_providers[name] = provider_data
-                
-                if row.get('is_active'):
-                    if config_type == 'text_generation':
-                        active_text = name
-                    elif config_type == 'image_generation':
-                        active_image = name
+            if rows:
+                for row in rows:
+                    name = row['provider_name']
+                    config_type = row['config_type']
+                    
+                    # 统一格式
+                    provider_data = {
+                        "type": row['provider_type'],
+                        "api_key": row['api_key'],
+                        "base_url": row.get('base_url'),
+                        "model": row.get('model'),
+                        "service_type": "text" if config_type == 'text_generation' else "image",
+                        "created_at": row.get('created_at')
+                    }
+                    custom_providers[name] = provider_data
+                    
+                    if row.get('is_active'):
+                        if config_type == 'text_generation':
+                            active_text = name
+                        elif config_type == 'image_generation':
+                            active_image = name
             
             return {
                 "custom_providers": custom_providers,
@@ -321,6 +324,8 @@ class ConfigService:
             }
         except Exception as e:
             print(f"Supabase 获取所有服务商失败: {e}")
+            import traceback
+            traceback.print_exc()
             return self._get_all_providers_file()
 
     def _add_custom_provider_supabase(self, provider_name: str, provider_type: str, api_key: str, base_url: str, model: str, service_type: str) -> bool:
