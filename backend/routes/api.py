@@ -313,14 +313,50 @@ def storage_check():
     """检查存储状态"""
     try:
         config_service = get_config_service()
-        history_service = get_history_service()
+        
+        # 检查是否使用了 Supabase
+        is_supabase = config_service.supabase is not None and getattr(config_service, 'enable_supabase', False)
         
         return jsonify({
             "success": True,
-            "config_storage": "supabase" if config_service.supabase else "local",
-            "history_storage": "supabase" if history_service.supabase else "local"
+            "mode": "supabase" if is_supabase else "local",
+            "details": {
+                "supabase_connected": config_service.supabase is not None,
+                "supabase_enabled": getattr(config_service, 'enable_supabase', False)
+            }
         }), 200
     except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@api_bp.route('/config/storage-mode', methods=['POST'])
+def switch_storage_mode():
+    """切换存储模式"""
+    data = request.get_json()
+    mode = data.get('mode')
+    
+    if mode not in ['supabase', 'local']:
+        return jsonify({"success": False, "error": "Invalid mode. Use 'supabase' or 'local'"}), 400
+        
+    config_service = get_config_service()
+    history_service = get_history_service()
+    
+    success_config = config_service.set_storage_mode(mode)
+    success_history = history_service.set_storage_mode(mode)
+    
+    if mode == 'supabase' and (not success_config or not success_history):
+        return jsonify({
+            "success": False, 
+            "error": "Failed to switch to Supabase. Check connection or credentials."
+        }), 500
+        
+    return jsonify({
+        "success": True,
+        "mode": mode,
+        "details": {
+            "config_service": success_config,
+            "history_service": success_history
+        }
+    })
         return jsonify({
             "success": False,
             "error": str(e)

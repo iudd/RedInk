@@ -27,13 +27,32 @@ class HistoryService:
         try:
             from backend.utils.supabase_client import get_supabase_client
             self.supabase = get_supabase_client()
+        if self.supabase:
+            print("HistoryService: 使用 Supabase 存储")
+            self.enable_supabase = True
+        else:
+            print("HistoryService: 使用本地文件存储")
+            self.enable_supabase = False
+
+    def set_storage_mode(self, mode: str) -> bool:
+        """设置存储模式: 'supabase' 或 'local'"""
+        if mode == 'supabase':
+            if not self.supabase:
+                try:
+                    from backend.utils.supabase_client import get_supabase_client
+                    self.supabase = get_supabase_client()
+                except:
+                    pass
+            
             if self.supabase:
-                print("HistoryService: Supabase 客户端初始化成功")
-            else:
-                print("HistoryService: Supabase 客户端初始化返回 None")
-        except Exception as e:
-            print(f"HistoryService: Supabase 初始化失败 (将使用本地文件): {e}")
-            self.supabase = None
+                self.enable_supabase = True
+                print("HistoryService: 已切换到 Supabase 存储")
+                return True
+            return False
+        else:
+            self.enable_supabase = False
+            print("HistoryService: 已切换到本地文件存储")
+            return True
 
     def _init_index(self):
         if not os.path.exists(self.index_file):
@@ -43,37 +62,37 @@ class HistoryService:
     # ==================== 公共接口 ====================
 
     def create_record(self, topic: str, outline: Dict, task_id: Optional[str] = None) -> str:
-        if self.supabase:
+        if self.supabase and self.enable_supabase:
             return self._create_record_supabase(topic, outline, task_id)
         return self._create_record_file(topic, outline, task_id)
 
     def get_record(self, record_id: str) -> Optional[Dict]:
-        if self.supabase:
+        if self.supabase and self.enable_supabase:
             return self._get_record_supabase(record_id)
         return self._get_record_file(record_id)
 
     def update_record(self, record_id: str, outline: Optional[Dict] = None, images: Optional[Dict] = None, status: Optional[str] = None, thumbnail: Optional[str] = None) -> bool:
-        if self.supabase:
+        if self.supabase and self.enable_supabase:
             return self._update_record_supabase(record_id, outline, images, status, thumbnail)
         return self._update_record_file(record_id, outline, images, status, thumbnail)
 
     def delete_record(self, record_id: str) -> bool:
-        if self.supabase:
+        if self.supabase and self.enable_supabase:
             return self._delete_record_supabase(record_id)
         return self._delete_record_file(record_id)
 
     def list_records(self, page: int = 1, page_size: int = 20, status: Optional[str] = None) -> Dict:
-        if self.supabase:
+        if self.supabase and self.enable_supabase:
             return self._list_records_supabase(page, page_size, status)
         return self._list_records_file(page, page_size, status)
 
     def search_records(self, keyword: str) -> List[Dict]:
-        if self.supabase:
+        if self.supabase and self.enable_supabase:
             return self._search_records_supabase(keyword)
         return self._search_records_file(keyword)
 
     def get_statistics(self) -> Dict:
-        if self.supabase:
+        if self.supabase and self.enable_supabase:
             return self._get_statistics_supabase()
         return self._get_statistics_file()
 

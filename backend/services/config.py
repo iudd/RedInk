@@ -27,19 +27,42 @@ class ConfigService:
         
         if self.supabase:
             print("ConfigService: 使用 Supabase 存储")
+            self.enable_supabase = True
         else:
             print("ConfigService: 使用本地文件存储")
+            self.enable_supabase = False
+
+    def set_storage_mode(self, mode: str) -> bool:
+        """设置存储模式: 'supabase' 或 'local'"""
+        if mode == 'supabase':
+            if not self.supabase:
+                # 尝试重新初始化
+                try:
+                    from backend.utils.supabase_client import get_supabase_client
+                    self.supabase = get_supabase_client()
+                except:
+                    pass
+            
+            if self.supabase:
+                self.enable_supabase = True
+                print("ConfigService: 已切换到 Supabase 存储")
+                return True
+            return False
+        else:
+            self.enable_supabase = False
+            print("ConfigService: 已切换到本地文件存储")
+            return True
 
     def get_full_config(self) -> Dict[str, Any]:
         """获取完整配置（用于 API 返回）"""
-        if self.supabase:
+        if self.supabase and self.enable_supabase:
             return self._get_full_config_supabase()
         else:
             return self._get_full_config_file()
 
     def update_full_config(self, data: Dict[str, Any]) -> bool:
         """更新完整配置"""
-        if self.supabase:
+        if self.supabase and self.enable_supabase:
             return self._update_full_config_supabase(data)
         else:
             return self._update_full_config_file(data)
@@ -277,28 +300,28 @@ class ConfigService:
 
     def get_all_providers(self) -> Dict[str, Any]:
         """获取所有可用服务商"""
-        if self.supabase:
+        if self.supabase and self.enable_supabase:
             return self._get_all_providers_supabase()
         else:
             return self._get_all_providers_file()
 
     def add_custom_provider(self, provider_name: str, provider_type: str, api_key: str, base_url: str, model: str, service_type: str = "text") -> bool:
         """添加自定义服务商"""
-        if self.supabase:
+        if self.supabase and self.enable_supabase:
             return self._add_custom_provider_supabase(provider_name, provider_type, api_key, base_url, model, service_type)
         else:
             return self._add_custom_provider_file(provider_name, provider_type, api_key, base_url, model, service_type)
 
     def delete_custom_provider(self, provider_name: str) -> bool:
         """删除自定义服务商"""
-        if self.supabase:
+        if self.supabase and self.enable_supabase:
             return self._delete_custom_provider_supabase(provider_name)
         else:
             return self._delete_custom_provider_file(provider_name)
 
     def set_active_provider(self, provider_name: str, service_type: str) -> bool:
         """设置激活的服务商"""
-        if self.supabase:
+        if self.supabase and self.enable_supabase:
             return self._set_active_provider_supabase(provider_name, service_type)
         else:
             return self._set_active_provider_file(provider_name, service_type)

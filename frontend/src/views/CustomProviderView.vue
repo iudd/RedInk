@@ -3,8 +3,17 @@
     <div class="page-header">
       <h1 class="page-title">自定义服务商配置</h1>
       <p class="page-subtitle">添加自定义的OpenAI兼容AI服务商</p>
-      <div v-if="storageStatus" class="storage-status" :class="storageStatus.config_storage">
-        存储模式: {{ storageStatus.config_storage === 'supabase' ? '☁️ Supabase 云端' : '📂 本地文件' }}
+      <div v-if="storageStatus" class="storage-status-container">
+        <div class="storage-status" :class="storageStatus.mode">
+          存储模式: {{ storageStatus.mode === 'supabase' ? '☁️ Supabase 云端' : '📂 本地文件' }}
+        </div>
+        <button 
+          @click="switchStorageMode" 
+          class="btn btn-small btn-secondary switch-btn"
+          :disabled="switchingStorage"
+        >
+          {{ switchingStorage ? '切换中...' : (storageStatus.mode === 'supabase' ? '切换到本地' : '切换到 Supabase') }}
+        </button>
       </div>
     </div>
 
@@ -217,6 +226,7 @@ const router = useRouter()
 const loading = ref(true)
 const saving = ref(false)
 const testingConnection = ref(false)
+const switchingStorage = ref(false)
 const testResult = ref<any>(null)
 const storageStatus = ref<any>(null)
 
@@ -271,6 +281,42 @@ async function loadConfig() {
     console.error('加载配置异常:', error)
   } finally {
     loading.value = false
+  }
+}
+
+// 切换存储模式
+async function switchStorageMode() {
+  if (!storageStatus.value) return
+  
+  const currentMode = storageStatus.value.mode
+  const targetMode = currentMode === 'supabase' ? 'local' : 'supabase'
+  
+  if (!confirm(`确定要切换到${targetMode === 'supabase' ? 'Supabase 云端' : '本地文件'}存储吗？\n注意：切换后可能需要重新配置服务商。`)) {
+    return
+  }
+  
+  switchingStorage.value = true
+  try {
+    const response = await fetch('/api/config/storage-mode', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ mode: targetMode })
+    })
+    
+    const result = await response.json()
+    if (result.success) {
+      alert(`已成功切换到 ${targetMode === 'supabase' ? 'Supabase' : '本地'} 存储模式`)
+      // 重新加载配置
+      await loadConfig()
+    } else {
+      alert('切换失败: ' + (result.error || '未知错误'))
+    }
+  } catch (error) {
+    alert('切换请求失败: ' + String(error))
+  } finally {
+    switchingStorage.value = false
   }
 }
 
@@ -447,13 +493,23 @@ onMounted(() => {
   color: #6b7280;
 }
 
-.storage-status {
-  display: inline-block;
+.storage-status-container {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
   margin-top: 0.5rem;
+}
+
+.storage-status {
   padding: 0.25rem 0.75rem;
   border-radius: 9999px;
   font-size: 0.875rem;
   font-weight: 500;
+}
+
+.switch-btn {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.75rem;
 }
 
 .storage-status.supabase {
@@ -798,23 +854,8 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
-  .container {
-    padding: 1rem;
-  }
-
   .form-row {
     grid-template-columns: 1fr;
-  }
-
-  .provider-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
-  }
-
-  .provider-actions {
-    width: 100%;
-    justify-content: flex-end;
   }
 }
 </style>
