@@ -44,16 +44,10 @@ class ConfigService:
                     return False, f"Failed to init with provided credentials: {str(e)}"
             
             if not self.supabase:
-                # 检查环境变量
-                if not os.environ.get("SUPABASE_URL") or not os.environ.get("SUPABASE_KEY"):
-                     return False, "Missing SUPABASE_URL or SUPABASE_KEY environment variables."
-
-                # 尝试重新初始化
+                # 尝试重新初始化，并捕获具体错误
                 try:
                     from backend.utils.supabase_client import get_supabase_client
-                    self.supabase = get_supabase_client()
-                except ImportError:
-                    return False, "Supabase library not installed."
+                    self.supabase = get_supabase_client(raise_error=True)
                 except Exception as e:
                     return False, f"Connection failed: {str(e)}"
             
@@ -451,82 +445,6 @@ class ConfigService:
             return True
         except Exception as e:
             print(f"Supabase 激活服务商失败: {e}")
-            return False
-
-    # ==================== 文件系统扩展实现 ====================
-
-    def _get_all_providers_file(self) -> Dict[str, Any]:
-        # 从 YAML 读取并合并
-        full_config = self._get_full_config_file()
-        text_conf = full_config.get('text_generation', {})
-        image_conf = full_config.get('image_generation', {})
-        
-        custom_providers = {}
-        
-        for name, conf in text_conf.get('providers', {}).items():
-            conf['service_type'] = 'text'
-            custom_providers[name] = conf
-            
-        for name, conf in image_conf.get('providers', {}).items():
-            conf['service_type'] = 'image'
-            custom_providers[name] = conf
-            
-        return {
-            "custom_providers": custom_providers,
-            "active_text_provider": text_conf.get('active_provider', 'openai'),
-            "active_image_provider": image_conf.get('active_provider', 'gemini')
-        }
-
-    def _add_custom_provider_file(self, provider_name: str, provider_type: str, api_key: str, base_url: str, model: str, service_type: str) -> bool:
-        try:
-            import yaml
-            filename = 'text_providers.yaml' if service_type == 'text' else 'image_providers.yaml'
-            file_path = self.config_dir / filename
-            
-            config = {}
-            if file_path.exists():
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    config = yaml.safe_load(f) or {}
-            
-            if 'providers' not in config:
-                config['providers'] = {}
-                
-            config['providers'][provider_name] = {
-                'type': provider_type,
-                'api_key': api_key,
-                'base_url': base_url,
-                'model': model
-            }
-            
-            with open(file_path, 'w', encoding='utf-8') as f:
-                yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
-                
-            Config.reload_config()
-            return True
-        except Exception as e:
-            print(f"文件添加服务商失败: {e}")
-            return False
-
-    def _delete_custom_provider_file(self, provider_name: str) -> bool:
-        try:
-            import yaml
-            # 尝试从两个文件中删除
-            for filename in ['text_providers.yaml', 'image_providers.yaml']:
-                file_path = self.config_dir / filename
-                if file_path.exists():
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        config = yaml.safe_load(f) or {}
-                    
-                    if 'providers' in config and provider_name in config['providers']:
-                        del config['providers'][provider_name]
-                        
-                        with open(file_path, 'w', encoding='utf-8') as f:
-                            yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
-            
-            Config.reload_config()
-            return True
-        except Exception as e:
-            print(f"文件删除服务商失败: {e}")
             return False
 
     def _set_active_provider_file(self, provider_name: str, service_type: str) -> bool:

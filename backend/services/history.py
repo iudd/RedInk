@@ -56,7 +56,7 @@ class HistoryService:
                 
                 try:
                     from backend.utils.supabase_client import get_supabase_client
-                    self.supabase = get_supabase_client()
+                    self.supabase = get_supabase_client(raise_error=True)
                 except ImportError:
                     return False, "Supabase library not installed."
                 except Exception as e:
