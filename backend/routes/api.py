@@ -334,6 +334,8 @@ def switch_storage_mode():
     try:
         data = request.get_json()
         mode = data.get('mode')
+        supabase_url = data.get('supabase_url')
+        supabase_key = data.get('supabase_key')
         
         if mode not in ['supabase', 'local']:
             return jsonify({"success": False, "error": "Invalid mode. Use 'supabase' or 'local'"}), 400
@@ -341,8 +343,8 @@ def switch_storage_mode():
         config_service = get_config_service()
         history_service = get_history_service()
         
-        success_config = config_service.set_storage_mode(mode)
-        success_history = history_service.set_storage_mode(mode)
+        success_config = config_service.set_storage_mode(mode, supabase_url, supabase_key)
+        success_history = history_service.set_storage_mode(mode, supabase_url, supabase_key)
         
         if mode == 'supabase' and (not success_config or not success_history):
             return jsonify({

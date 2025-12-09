@@ -31,3 +31,17 @@ def get_supabase_client() -> Optional[Any]:
             return None
     
     return _supabase_client
+
+def init_supabase_client(url: str, key: str) -> Optional[Any]:
+    """使用提供的凭证强制初始化 Supabase 客户端"""
+    global _supabase_client
+    try:
+        from supabase import create_client
+        _supabase_client = create_client(url, key)
+        # 更新环境变量，以便后续自动获取也能工作
+        os.environ["SUPABASE_URL"] = url
+        os.environ["SUPABASE_KEY"] = key
+        return _supabase_client
+    except Exception as e:
+        print(f"Supabase Explicit Initialization Failed: {e}")
+        return None

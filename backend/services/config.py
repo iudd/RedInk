@@ -32,9 +32,17 @@ class ConfigService:
             print("ConfigService: 使用本地文件存储")
             self.enable_supabase = False
 
-    def set_storage_mode(self, mode: str) -> bool:
+    def set_storage_mode(self, mode: str, url: Optional[str] = None, key: Optional[str] = None) -> bool:
         """设置存储模式: 'supabase' 或 'local'"""
         if mode == 'supabase':
+            # 如果提供了新的凭证，强制重新初始化
+            if url and key:
+                try:
+                    from backend.utils.supabase_client import init_supabase_client
+                    self.supabase = init_supabase_client(url, key)
+                except:
+                    pass
+            
             if not self.supabase:
                 # 尝试重新初始化
                 try:

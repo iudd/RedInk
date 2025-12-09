@@ -213,6 +213,47 @@
         </div>
       </div>
     </div>
+
+    <!-- Supabase 配置对话框 -->
+    <div v-if="showSupabaseDialog" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>连接到 Supabase</h3>
+          <button @click="showSupabaseDialog = false" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-desc">请输入您的 Supabase 项目凭证以启用云端存储。</p>
+          
+          <div class="form-group">
+            <label>Supabase URL</label>
+            <input 
+              v-model="supabaseConfig.url" 
+              type="text" 
+              placeholder="https://your-project.supabase.co"
+            />
+          </div>
+          
+          <div class="form-group">
+            <label>Supabase Key (anon/public)</label>
+            <input 
+              v-model="supabaseConfig.key" 
+              type="password" 
+              placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button @click="showSupabaseDialog = false" class="btn btn-secondary">取消</button>
+          <button 
+            @click="confirmSwitchToSupabase" 
+            class="btn btn-primary"
+            :disabled="switchingStorage"
+          >
+            {{ switchingStorage ? '连接中...' : '连接并切换' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -227,8 +268,15 @@ const loading = ref(true)
 const saving = ref(false)
 const testingConnection = ref(false)
 const switchingStorage = ref(false)
+const showSupabaseDialog = ref(false)
 const testResult = ref<any>(null)
 const storageStatus = ref<any>(null)
+
+// Supabase 配置
+const supabaseConfig = ref({
+  url: '',
+  key: ''
+})
 
 // 自定义服务商列表
 const customProviders = ref<any[]>([])
@@ -289,29 +337,60 @@ async function switchStorageMode() {
   if (!storageStatus.value) return
   
   const currentMode = storageStatus.value.mode
-  const targetMode = currentMode === 'supabase' ? 'local' : 'supabase'
   
-  if (!confirm(`确定要切换到${targetMode === 'supabase' ? 'Supabase 云端' : '本地文件'}存储吗？\n注意：切换后可能需要重新配置服务商。`)) {
+  // 如果当前是 local，要切换到 supabase
+  if (currentMode === 'local') {
+    showSupabaseDialog.value = true
     return
   }
   
+  // 如果当前是 supabase，要切换到 local
+  if (!confirm('确定要切换到本地文件存储吗？')) {
+    return
+  }
+  
+  await executeSwitch('local')
+}
+
+// 确认切换到 Supabase
+async function confirmSwitchToSupabase() {
+  if (!supabaseConfig.value.url || !supabaseConfig.value.key) {
+    alert('请填写 Supabase URL 和 Key')
+    return
+  }
+  
+  showSupabaseDialog.value = false
+  await executeSwitch('supabase', supabaseConfig.value.url, supabaseConfig.value.key)
+}
+
+// 执行切换逻辑
+async function executeSwitch(mode: string, url?: string, key?: string) {
   switchingStorage.value = true
   try {
+    const payload: any = { mode }
+    if (url && key) {
+      payload.supabase_url = url
+      payload.supabase_key = key
+    }
+
     const response = await fetch('/api/config/storage-mode', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ mode: targetMode })
+      body: JSON.stringify(payload)
     })
     
     const result = await response.json()
     if (result.success) {
-      alert(`已成功切换到 ${targetMode === 'supabase' ? 'Supabase' : '本地'} 存储模式`)
-      // 重新加载配置
+      alert(`已成功切换到 ${mode === 'supabase' ? 'Supabase' : '本地'} 存储模式`)
       await loadConfig()
     } else {
       alert('切换失败: ' + (result.error || '未知错误'))
+      // 如果失败且是尝试切换到 Supabase，重新显示对话框以便重试
+      if (mode === 'supabase') {
+        showSupabaseDialog.value = true
+      }
     }
   } catch (error) {
     alert('切换请求失败: ' + String(error))
@@ -851,6 +930,73 @@ onMounted(() => {
 .provider-value {
   color: #1f2937;
   font-weight: 600;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.modal-header h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.modal-desc {
+  color: #6b7280;
+  margin-bottom: 1.5rem;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  padding: 1.25rem;
+  border-top: 1px solid #e5e7eb;
+  background-color: #f9fafb;
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
 }
 
 @media (max-width: 768px) {
