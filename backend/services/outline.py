@@ -42,12 +42,18 @@ class OutlineService:
             return f.read()
 
     def _parse_outline(self, outline_text: str) -> List[Dict[str, Any]]:
+        if not outline_text:
+            return []
+
         # 按 <page> 分割页面（兼容旧的 --- 分隔符）
         if '<page>' in outline_text:
             pages_raw = re.split(r'<page>', outline_text, flags=re.IGNORECASE)
-        else:
+        elif '---' in outline_text:
             # 向后兼容：如果没有 <page> 则使用 ---
             pages_raw = outline_text.split("---")
+        else:
+            # 如果没有分隔符，将整个文本作为一个页面
+            pages_raw = [outline_text]
 
         pages = []
 
@@ -106,6 +112,14 @@ class OutlineService:
             )
             
             print(f"OutlineService: Generated outline length: {len(outline_text)}")
+            
+            if not outline_text or not outline_text.strip():
+                print("OutlineService: Error - Generated outline is empty")
+                return {
+                    "success": False,
+                    "error": "生成的大纲内容为空。这可能是由于模型拒绝了请求或输出了空内容。请尝试更换主题或服务商。"
+                }
+
             if len(outline_text) < 100:
                 print(f"OutlineService: Warning - Short outline generated: {outline_text}")
 

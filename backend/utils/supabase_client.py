@@ -1,10 +1,10 @@
-from supabase import create_client, Client
+from typing import Any, Optional
 import os
 
-_supabase_client: Client = None
+_supabase_client = None
 
-def get_supabase_client() -> Client:
-    """获取 Supabase 客户端实例"""
+def get_supabase_client() -> Optional[Any]:
+    """获取 Supabase 客户端实例 (延迟加载以避免依赖问题)"""
     global _supabase_client
     
     if _supabase_client is None:
@@ -15,9 +15,19 @@ def get_supabase_client() -> Client:
             return None
         
         try:
+            # 延迟导入，防止因缺少依赖导致整个应用崩溃
+            from supabase import create_client, Client
+            
+            # 初始化客户端
+            # 注意：Supabase Python 客户端默认没有显式的全局超时设置
+            # 连接超时通常由底层的 httpx/requests 控制
             _supabase_client = create_client(url, key)
+            
+        except ImportError:
+            print("Warning: 'supabase' module not found. Running in local-only mode.")
+            return None
         except Exception as e:
-            print(f"Supabase 连接失败: {e}")
+            print(f"Supabase Client Initialization Failed: {e}")
             return None
     
     return _supabase_client
