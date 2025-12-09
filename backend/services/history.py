@@ -27,6 +27,10 @@ class HistoryService:
         try:
             from backend.utils.supabase_client import get_supabase_client
             self.supabase = get_supabase_client()
+        except Exception as e:
+            print(f"HistoryService: Supabase 初始化失败 (将使用本地文件): {e}")
+            self.supabase = None
+            
         if self.supabase:
             print("HistoryService: 使用 Supabase 存储")
             self.enable_supabase = True
