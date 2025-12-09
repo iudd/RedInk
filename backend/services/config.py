@@ -17,6 +17,10 @@ class ConfigService:
         try:
             from backend.utils.supabase_client import get_supabase_client
             self.supabase = get_supabase_client()
+            if self.supabase:
+                print("ConfigService: Supabase 客户端初始化成功")
+            else:
+                print("ConfigService: Supabase 客户端初始化返回 None (可能缺少环境变量)")
         except Exception as e:
             print(f"ConfigService: Supabase 初始化失败 (将使用本地文件): {e}")
             self.supabase = None
@@ -44,9 +48,11 @@ class ConfigService:
 
     def _get_full_config_supabase(self) -> Dict[str, Any]:
         try:
+            print("ConfigService: 正在从 Supabase 获取配置...")
             # 获取所有配置
             response = self.supabase.table('configurations').select('*').execute()
             rows = response.data
+            print(f"ConfigService: 获取到 {len(rows)} 条配置记录")
             
             text_providers = {}
             image_providers = {}
@@ -54,12 +60,15 @@ class ConfigService:
             active_image = ""
             
             for row in rows:
-                config_type = row['config_type']
-                name = row['provider_name']
+                config_type = row.get('config_type')
+                name = row.get('provider_name')
                 
+                if not config_type or not name:
+                    continue
+
                 provider_config = {
-                    'type': row['provider_type'],
-                    'api_key': row['api_key'],
+                    'type': row.get('provider_type', 'openai_compatible'),
+                    'api_key': row.get('api_key', ''),
                     'base_url': row.get('base_url'),
                     'model': row.get('model'),
                     # 恢复其他可能的字段
@@ -76,7 +85,7 @@ class ConfigService:
                         active_image = name
 
             # 如果没有配置，返回默认结构
-            return {
+            result = {
                 "text_generation": {
                     "active_provider": active_text or 'openai',
                     "providers": text_providers
@@ -86,6 +95,7 @@ class ConfigService:
                     "providers": image_providers
                 }
             }
+            return result
         except Exception as e:
             print(f"Supabase 获取配置失败: {e}")
             traceback.print_exc()
@@ -94,6 +104,7 @@ class ConfigService:
 
     def _update_full_config_supabase(self, data: Dict[str, Any]) -> bool:
         try:
+            print("ConfigService: 正在更新 Supabase 配置...")
             # 更新文本生成配置
             if 'text_generation' in data:
                 self._save_provider_group_supabase('text_generation', data['text_generation'])
@@ -104,6 +115,7 @@ class ConfigService:
                 
             # 清除内存缓存
             Config.reload_config()
+            print("ConfigService: Supabase 配置更新成功")
             return True
         except Exception as e:
             print(f"Supabase 更新配置失败: {e}")
@@ -114,6 +126,8 @@ class ConfigService:
         active_provider = group_data.get('active_provider')
         providers = group_data.get('providers', {})
         
+        print(f"ConfigService: 保存 {config_type} 配置, 激活服务商: {active_provider}, 服务商数量: {len(providers)}")
+
         # 1. 更新 active 状态
         if active_provider:
             # 先将该类型所有设为非激活
@@ -140,6 +154,8 @@ class ConfigService:
             # 设置激活状态
             if active_provider and name == active_provider:
                 row_data['is_active'] = True
+            else:
+                row_data['is_active'] = False
             
             # 执行 upsert (根据 config_type + provider_name 唯一约束)
             # 注意：Supabase upsert 需要指定 on_conflict

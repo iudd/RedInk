@@ -27,6 +27,10 @@ class HistoryService:
         try:
             from backend.utils.supabase_client import get_supabase_client
             self.supabase = get_supabase_client()
+            if self.supabase:
+                print("HistoryService: Supabase 客户端初始化成功")
+            else:
+                print("HistoryService: Supabase 客户端初始化返回 None")
         except Exception as e:
             print(f"HistoryService: Supabase 初始化失败 (将使用本地文件): {e}")
             self.supabase = None
@@ -88,6 +92,7 @@ class HistoryService:
                 'updated_at': datetime.now().isoformat()
             }
             self.supabase.table('history_records').insert(data).execute()
+            print(f"HistoryService: Supabase 创建记录成功: {record_id}")
             return record_id
         except Exception as e:
             print(f"Supabase 创建记录失败: {e}")
@@ -141,7 +146,9 @@ class HistoryService:
 
     def _delete_record_supabase(self, record_id: str) -> bool:
         try:
+            print(f"HistoryService: 正在从 Supabase 删除记录: {record_id}")
             self.supabase.table('history_records').delete().eq('id', record_id).execute()
+            print(f"HistoryService: Supabase 删除记录成功: {record_id}")
             return True
         except Exception as e:
             print(f"Supabase 删除记录失败: {e}")
