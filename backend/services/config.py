@@ -296,6 +296,13 @@ class ConfigService:
         else:
             return self._delete_custom_provider_file(provider_name)
 
+    def set_active_provider(self, provider_name: str, service_type: str) -> bool:
+        """设置激活的服务商"""
+        if self.supabase:
+            return self._set_active_provider_supabase(provider_name, service_type)
+        else:
+            return self._set_active_provider_file(provider_name, service_type)
+
     # ==================== Supabase 扩展实现 ====================
 
     def _get_all_providers_supabase(self) -> Dict[str, Any]:
@@ -392,6 +399,22 @@ class ConfigService:
             print(f"Supabase 删除服务商失败: {e}")
             return False
 
+    def _set_active_provider_supabase(self, provider_name: str, service_type: str) -> bool:
+        try:
+            config_type = 'text_generation' if service_type == 'text' else 'image_generation'
+            
+            # 1. 将该类型所有服务商设为非激活
+            self.supabase.table('configurations').update({'is_active': False}).eq('config_type', config_type).execute()
+            
+            # 2. 将指定服务商设为激活
+            self.supabase.table('configurations').update({'is_active': True}).eq('config_type', config_type).eq('provider_name', provider_name).execute()
+            
+            Config.reload_config()
+            return True
+        except Exception as e:
+            print(f"Supabase 激活服务商失败: {e}")
+            return False
+
     # ==================== 文件系统扩展实现 ====================
 
     def _get_all_providers_file(self) -> Dict[str, Any]:
@@ -466,6 +489,28 @@ class ConfigService:
             return True
         except Exception as e:
             print(f"文件删除服务商失败: {e}")
+            return False
+
+    def _set_active_provider_file(self, provider_name: str, service_type: str) -> bool:
+        try:
+            import yaml
+            filename = 'text_providers.yaml' if service_type == 'text' else 'image_providers.yaml'
+            file_path = self.config_dir / filename
+            
+            if file_path.exists():
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    config = yaml.safe_load(f) or {}
+                
+                config['active_provider'] = provider_name
+                
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
+                
+                Config.reload_config()
+                return True
+            return False
+        except Exception as e:
+            print(f"文件激活服务商失败: {e}")
             return False
 
     def test_provider_connection(self, provider_config: Dict[str, Any]) -> Dict[str, Any]:

@@ -95,6 +95,8 @@ class OutlineService:
             temperature = provider_config.get('temperature', 1.0)
             max_output_tokens = provider_config.get('max_output_tokens', 65535)
 
+            print(f"OutlineService: Generating outline using provider '{active_provider}', model '{model}'")
+
             outline_text = self.client.generate_text(
                 prompt=prompt,
                 model=model,
@@ -102,8 +104,13 @@ class OutlineService:
                 max_output_tokens=max_output_tokens,
                 images=images
             )
+            
+            print(f"OutlineService: Generated outline length: {len(outline_text)}")
+            if len(outline_text) < 100:
+                print(f"OutlineService: Warning - Short outline generated: {outline_text}")
 
             pages = self._parse_outline(outline_text)
+            print(f"OutlineService: Parsed {len(pages)} pages")
 
             return {
                 "success": True,

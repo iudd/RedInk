@@ -340,7 +340,7 @@ const handleGenerate = async () => {
       imageFiles.length > 0 ? imageFiles : undefined
     )
 
-    if (result.success && result.pages) {
+    if (result.success && result.pages && result.pages.length > 0) {
       store.setTopic(topic.value.trim())
       store.setOutline(result.outline || '', result.pages)
       store.recordId = null  // 重置历史记录ID,确保创建新记录
@@ -358,7 +358,7 @@ const handleGenerate = async () => {
 
       router.push('/outline')
     } else {
-      error.value = result.error || '生成大纲失败'
+      error.value = result.error || '生成的大纲内容为空，请重试'
     }
   } catch (err: any) {
     error.value = err.message || '网络错误，请重试'
