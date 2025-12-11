@@ -45,7 +45,17 @@ class ImageService:
         self.provider_type = self.provider_config.get('type', 'openai_compatible')
         
         # 初始化生成器
-        self.generator = ImageGeneratorFactory.create(self.provider_type, self.provider_config)
+        print(f"ImageService: 初始化图片生成器")
+        print(f"  - Provider: {provider_name}")
+        print(f"  - Type: {self.provider_type}")
+        print(f"  - Config: base_url={self.provider_config.get('base_url')}, model={self.provider_config.get('model')}")
+        
+        try:
+            self.generator = ImageGeneratorFactory.create(self.provider_type, self.provider_config)
+            print(f"ImageService: 图片生成器初始化成功")
+        except Exception as e:
+            print(f"ImageService: 图片生成器初始化失败: {e}")
+            raise
         
         # 任务状态存储 (内存中)
         self._task_states = {}
@@ -405,11 +415,18 @@ class ImageService:
             if user_images:
                 ref_images.extend(user_images)
             
+            
+            print(f"ImageService: 开始生成图片 (页 {index})")
+            print(f"  - Prompt: {enhanced_prompt[:100]}...")
+            print(f"  - Generator type: {type(self.generator).__name__}")
+            
             image_data = self.generator.generate(
                 prompt=enhanced_prompt,
                 reference_image=ref_images[0] if ref_images else None, # 目前接口只支持单张参考图，优先使用封面
                 negative_prompt="text, watermark, blurry, low quality, distorted, ugly"
             )
+            
+            print(f"ImageService: 图片生成成功 (页 {index}), 数据大小: {len(image_data) if image_data else 0} bytes")
             
             if not image_data:
                 raise Exception("生成器返回空数据")
