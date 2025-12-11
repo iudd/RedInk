@@ -8,6 +8,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     curl \
     git \
+    dnsutils \
     && rm -rf /var/lib/apt/lists/*
 
 # 安装uv包管理器

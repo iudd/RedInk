@@ -599,7 +599,7 @@ class ConfigService:
                 except:
                     try:
                         # Fallback to nslookup
-                        cmd = ['nslookup', hostname]
+                        cmd = ['nslookup', hostname, '8.8.8.8']
                         result = subprocess.check_output(cmd, timeout=5, stderr=subprocess.STDOUT).decode()
                         # 匹配 IP 地址
                         ips = re.findall(r'Address:\s*([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)', result)
