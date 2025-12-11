@@ -2,8 +2,13 @@
 import time
 import random
 import base64
+import socket
+import subprocess
+import re
 from functools import wraps
 from typing import Dict, Any
+from urllib.parse import urlparse
+from contextlib import contextmanager
 import requests
 from .base import ImageGeneratorBase
 
@@ -44,6 +49,60 @@ def retry_on_error(max_retries=5, base_delay=3):
     return decorator
 
 
+def resolve_hostname_with_fallback(hostname: str) -> str:
+    """
+    解析主机名,如果失败则使用 nslookup 回退
+    
+    Args:
+        hostname: 要解析的主机名
+        
+    Returns:
+        解析到的 IP 地址,如果失败返回原始 hostname
+    """
+    try:
+        return socket.gethostbyname(hostname)
+    except:
+        try:
+            # Fallback to nslookup with Google DNS
+            cmd = ['nslookup', hostname, '8.8.8.8']
+            result = subprocess.check_output(cmd, timeout=5, stderr=subprocess.STDOUT).decode()
+            ips = re.findall(r'Address:\s*([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)', result)
+            if ips:
+                resolved_ip = ips[-1]
+                print(f"DNS fallback: {hostname} -> {resolved_ip}")
+                return resolved_ip
+        except Exception as e:
+            print(f"DNS resolution fallback failed for {hostname}: {e}")
+    return hostname
+
+
+@contextmanager
+def force_ip_resolution(hostname: str, ip: str):
+    """
+    强制使用指定 IP 解析主机名
+    
+    Args:
+        hostname: 主机名
+        ip: 要使用的 IP 地址
+    """
+    if not ip or ip == hostname:
+        yield
+        return
+    
+    original_getaddrinfo = socket.getaddrinfo
+    def patched_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+        if host == hostname:
+            return original_getaddrinfo(ip, port, socket.AF_INET, type, proto, flags)
+        return original_getaddrinfo(host, port, family, type, proto, flags)
+    
+    socket.getaddrinfo = patched_getaddrinfo
+    try:
+        yield
+    finally:
+        socket.getaddrinfo = original_getaddrinfo
+
+
+
 class OpenAICompatibleGenerator(ImageGeneratorBase):
     """OpenAI 兼容接口图片生成器"""
 
@@ -67,6 +126,17 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
 
         # API 端点类型: 'images' 或 'chat'
         self.endpoint_type = config.get('endpoint_type', 'images')
+        
+        # 预解析主机名以避免 DNS 问题
+        try:
+            parsed = urlparse(self.base_url)
+            self.hostname = parsed.hostname
+            self.resolved_ip = resolve_hostname_with_fallback(self.hostname) if self.hostname else None
+            print(f"OpenAI Generator: Hostname {self.hostname} resolved to {self.resolved_ip}")
+        except Exception as e:
+            print(f"OpenAI Generator: Failed to parse/resolve hostname: {e}")
+            self.hostname = None
+            self.resolved_ip = None
 
     def validate_config(self) -> bool:
         """验证配置"""
@@ -119,7 +189,12 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
         quality: str
     ) -> bytes:
         """通过 /v1/images/generations 端点生成"""
-        url = f"{self.base_url.rstrip('/')}/v1/images/generations"
+        # 智能处理 base_url,避免重复 /v1
+        base = self.base_url.rstrip('/')
+        if base.endswith('/v1'):
+            url = f"{base}/images/generations"
+        else:
+            url = f"{base}/v1/images/generations"
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -138,7 +213,9 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
         if quality and model.startswith('dall-e'):
             payload["quality"] = quality
 
-        response = requests.post(url, headers=headers, json=payload, timeout=600)
+        # 使用强制 IP 解析避免 DNS 问题
+        with force_ip_resolution(self.hostname, self.resolved_ip):
+            response = requests.post(url, headers=headers, json=payload, timeout=600)
 
         if response.status_code != 200:
             error_detail = response.text[:500]
@@ -187,7 +264,8 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
 
         # 处理URL格式
         elif "url" in image_data:
-            img_response = requests.get(image_data["url"], timeout=60)
+            with force_ip_resolution(self.hostname, self.resolved_ip):
+                img_response = requests.get(image_data["url"], timeout=60)
             if img_response.status_code == 200:
                 return img_response.content
             else:
@@ -210,7 +288,12 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
         model: str
     ) -> bytes:
         """通过 /v1/chat/completions 端点生成（某些服务商使用此方式）"""
-        url = f"{self.base_url.rstrip('/')}/v1/chat/completions"
+        # 智能处理 base_url,避免重复 /v1
+        base = self.base_url.rstrip('/')
+        if base.endswith('/v1'):
+            url = f"{base}/chat/completions"
+        else:
+            url = f"{base}/v1/chat/completions"
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -232,7 +315,9 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
             "size": size
         }
 
-        response = requests.post(url, headers=headers, json=payload, timeout=180)
+        # 使用强制 IP 解析避免 DNS 问题
+        with force_ip_resolution(self.hostname, self.resolved_ip):
+            response = requests.post(url, headers=headers, json=payload, timeout=180)
 
         if response.status_code != 200:
             error_detail = response.text[:500]
