@@ -16,8 +16,8 @@ from backend.app import create_app
 backend_app = create_app()  # 这会创建并配置好所有路由
 
 # 前端构建文件目录
-#FRONTEND_DIST = "/app/frontend/dist"
-FRONTEND_DIST = "e:/code/RedInk/frontend/dist"
+FRONTEND_DIST = "/app/frontend/dist"
+#FRONTEND_DIST = "e:/code/RedInk/frontend/dist"
 
 # 不需要创建新的app，直接使用backend_app
 app = backend_app  # 直接使用已经配置好的后端应用

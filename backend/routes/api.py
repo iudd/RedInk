@@ -114,6 +114,7 @@ def generate_images():
             generate(),
             mimetype='text/event-stream',
             headers={
+                'Content-Type': 'text/event-stream; charset=utf-8',
                 'Cache-Control': 'no-cache',
                 'X-Accel-Buffering': 'no',
             }
@@ -225,6 +226,7 @@ def retry_failed_images():
             generate(),
             mimetype='text/event-stream',
             headers={
+                'Content-Type': 'text/event-stream; charset=utf-8',
                 'Cache-Control': 'no-cache',
                 'X-Accel-Buffering': 'no',
             }
