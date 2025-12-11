@@ -381,7 +381,13 @@ class ImageService:
         生成单张图片的内部方法
         """
         index = page["index"]
-        prompt = page["image_prompt"]
+        # 兼容处理：如果 image_prompt 不存在，使用 content
+        prompt = page.get("image_prompt")
+        if not prompt:
+            prompt = page.get("content", "")
+            # 如果还是空的，给一个默认值
+            if not prompt:
+                prompt = "Illustration for story page " + str(index)
         
         # 构建完整提示词
         # 如果有上下文，可以增强 prompt
