@@ -62,3 +62,17 @@ class ImageGeneratorBase(ABC):
             支持的宽高比列表
         """
         return self.config.get('supported_aspect_ratios', ['1:1', '3:4', '16:9'])
+
+    def generate(self, prompt: str, **kwargs) -> bytes:
+        """
+        生成图片 (generate_image 的别名,用于兼容性)
+        
+        Args:
+            prompt: 提示词
+            **kwargs: 其他参数
+            
+        Returns:
+            图片二进制数据
+        """
+        return self.generate_image(prompt, **kwargs)
+
