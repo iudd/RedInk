@@ -586,6 +586,139 @@ class ConfigService:
         """测试服务商连接"""
         try:
             import requests
+            import socket
+            import subprocess
+            import re
+            from urllib.parse import urlparse
+            from contextlib import contextmanager
+
+            # DNS 修复工具：尝试通过 nslookup 解析 IP
+            def resolve_ip(hostname):
+                try:
+                    return socket.gethostbyname(hostname)
+                except:
+                    try:
+                        # Fallback to nslookup
+                        cmd = ['nslookup', hostname]
+                        result = subprocess.check_output(cmd, timeout=5, stderr=subprocess.STDOUT).decode()
+                        # 匹配 IP 地址
+                        ips = re.findall(r'Address:\s*([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)', result)
+                        if ips:
+                            return ips[-1]
+                    except Exception as e:
+                        print(f"DNS resolution fallback failed: {e}")
+                    return None
+
+            # Context manager to force IP resolution
+            @contextmanager
+            def force_ip_resolution(hostname, ip):
+                if not ip:
+                    yield
+                    return
+                
+                original_getaddrinfo = socket.getaddrinfo
+                def patched_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+                    if host == hostname:
+                        return original_getaddrinfo(ip, port, socket.AF_INET, type, proto, flags)
+                    return original_getaddrinfo(host, port, family, type, proto, flags)
+                
+                socket.getaddrinfo = patched_getaddrinfo
+                try:
+                    yield
+                finally:
+                    socket.getaddrinfo = original_getaddrinfo
+
+            headers = {
+                "Authorization": f"Bearer {provider_config.get('api_key', '')}",
+                "Content-Type": "application/json"
+            }
+            
+            # 构建测试请求
+            base_url = provider_config.get('base_url', '')
+            if not base_url:
+                 return {"success": False, "message": "Base URL 为空"}
+
+            # 解析 hostname
+            try:
+                parsed_url = urlparse(base_url)
+                hostname = parsed_url.hostname
+            except:
+                hostname = None
+
+            test_url = f"{base_url.rstrip('/')}/models"
+            chat_url = f"{base_url.rstrip('/')}/chat/completions"
+            if base_url.endswith('/v1'):
+                 chat_url = f"{base_url}/chat/completions"
+            
+            payload = {
+                "model": provider_config.get('model', 'gpt-3.5-turbo'),
+                "messages": [{"role": "user", "content": "Hi"}],
+                "max_tokens": 5
+            }
+
+            def do_request():
+                # 1. 尝试 /models
+                try:
+                    response = requests.get(test_url, headers=headers, timeout=10)
+                    if response.status_code == 200:
+                        models = response.json().get("data", [])
+                        return {
+                            "success": True,
+                            "message": "连接成功",
+                            "models": [model.get("id", "") for model in models if model.get("id")]
+                        }
+                except Exception:
+                    pass
+                
+                # 2. 尝试 chat completion
+                response = requests.post(chat_url, headers=headers, json=payload, timeout=10)
+                if response.status_code == 200:
+                     return {"success": True, "message": "连接成功 (Chat测试通过)"}
+                else:
+                     return {
+                        "success": False,
+                        "message": f"连接失败: HTTP {response.status_code}",
+                        "error": response.text
+                    }
+
+            # 执行请求（带 DNS 回退）
+            try:
+                return do_request()
+            except Exception as e:
+                # 如果是 DNS 错误，尝试回退
+                error_str = str(e)
+                if "NameResolutionError" in error_str or "No address associated with hostname" in error_str:
+                    print(f"DNS error detected for {hostname}, attempting fallback...")
+                    resolved_ip = resolve_ip(hostname)
+                    if resolved_ip:
+                        print(f"Resolved {hostname} to {resolved_ip}, retrying with forced IP...")
+                        with force_ip_resolution(hostname, resolved_ip):
+                            try:
+                                return do_request()
+                            except Exception as retry_e:
+                                return {
+                                    "success": False,
+                                    "message": f"连接失败 (重试后): {str(retry_e)}",
+                                    "error": str(retry_e)
+                                }
+                
+                return {
+                    "success": False,
+                    "message": f"连接测试失败: {str(e)}",
+                    "error": str(e)
+                }
+                
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"连接测试失败: {str(e)}",
+                "error": str(e)
+            }
+
+    def _old_test_provider_connection(self, provider_config: Dict[str, Any]) -> Dict[str, Any]:
+        """测试服务商连接"""
+        try:
+            import requests
             
             headers = {
                 "Authorization": f"Bearer {provider_config.get('api_key', '')}",
