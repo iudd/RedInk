@@ -469,6 +469,119 @@ class ConfigService:
             print(f"文件激活服务商失败: {e}")
             return False
 
+    def _get_all_providers_file(self) -> Dict[str, Any]:
+        """从文件获取所有服务商"""
+        try:
+            full_config = self._get_full_config_file()
+            custom_providers = {}
+            active_text = full_config.get('text_generation', {}).get('active_provider', 'openai')
+            active_image = full_config.get('image_generation', {}).get('active_provider', 'gemini')
+
+            # 处理文本服务商
+            text_providers = full_config.get('text_generation', {}).get('providers', {})
+            for name, config in text_providers.items():
+                custom_providers[name] = {
+                    "type": config.get('type', 'openai_compatible'),
+                    "api_key": config.get('api_key', ''),
+                    "base_url": config.get('base_url'),
+                    "model": config.get('model'),
+                    "service_type": "text",
+                    "created_at": None
+                }
+
+            # 处理图片服务商
+            image_providers = full_config.get('image_generation', {}).get('providers', {})
+            for name, config in image_providers.items():
+                custom_providers[name] = {
+                    "type": config.get('type', 'openai_compatible'),
+                    "api_key": config.get('api_key', ''),
+                    "base_url": config.get('base_url'),
+                    "model": config.get('model'),
+                    "service_type": "image",
+                    "created_at": None
+                }
+
+            return {
+                "custom_providers": custom_providers,
+                "active_text_provider": active_text,
+                "active_image_provider": active_image
+            }
+        except Exception as e:
+            print(f"文件获取所有服务商失败: {e}")
+            traceback.print_exc()
+            return {
+                "custom_providers": {},
+                "active_text_provider": "openai",
+                "active_image_provider": "gemini"
+            }
+
+    def _add_custom_provider_file(self, provider_name: str, provider_type: str, api_key: str, base_url: str, model: str, service_type: str) -> bool:
+        try:
+            import yaml
+            filename = 'text_providers.yaml' if service_type == 'text' else 'image_providers.yaml'
+            file_path = self.config_dir / filename
+            
+            config = {}
+            if file_path.exists():
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    config = yaml.safe_load(f) or {}
+            
+            if 'providers' not in config:
+                config['providers'] = {}
+                
+            config['providers'][provider_name] = {
+                'type': provider_type,
+                'api_key': api_key,
+                'base_url': base_url,
+                'model': model
+            }
+            
+            # 确保有 active_provider
+            if 'active_provider' not in config:
+                config['active_provider'] = provider_name
+                
+            with open(file_path, 'w', encoding='utf-8') as f:
+                yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
+                
+            Config.reload_config()
+            return True
+        except Exception as e:
+            print(f"文件添加服务商失败: {e}")
+            return False
+
+    def _delete_custom_provider_file(self, provider_name: str) -> bool:
+        try:
+            import yaml
+            # 需要检查两个文件
+            for filename in ['text_providers.yaml', 'image_providers.yaml']:
+                file_path = self.config_dir / filename
+                if not file_path.exists():
+                    continue
+                    
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    config = yaml.safe_load(f) or {}
+                    
+                if 'providers' in config and provider_name in config['providers']:
+                    del config['providers'][provider_name]
+                    
+                    # 如果删除的是当前激活的，重置激活
+                    if config.get('active_provider') == provider_name:
+                        if config['providers']:
+                            config['active_provider'] = list(config['providers'].keys())[0]
+                        else:
+                            config['active_provider'] = ''
+                            
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
+                    
+                    Config.reload_config()
+                    return True
+            
+            return False # 未找到
+        except Exception as e:
+            print(f"文件删除服务商失败: {e}")
+            return False
+
     def test_provider_connection(self, provider_config: Dict[str, Any]) -> Dict[str, Any]:
         """测试服务商连接"""
         try:
