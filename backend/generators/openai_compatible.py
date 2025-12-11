@@ -125,7 +125,14 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
         self.default_model = config.get('model', 'dall-e-3')
 
         # API 端点类型: 'images' 或 'chat'
-        self.endpoint_type = config.get('endpoint_type', 'images')
+        # 智能检测:某些 API (如 whisk) 使用 chat 端点生成图片
+        if 'endpoint_type' in config:
+            self.endpoint_type = config['endpoint_type']
+        elif 'whisk' in self.base_url.lower():
+            self.endpoint_type = 'chat'
+            print(f"OpenAI Generator: 检测到 whisk API,自动使用 chat 端点")
+        else:
+            self.endpoint_type = 'images'
         
         # 预解析主机名以避免 DNS 问题
         try:
@@ -334,20 +341,49 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
                 "建议：尝试将 endpoint_type 改为 'images' 或检查API密钥"
             )
 
-        result = response.json()
 
-        # 这部分需要根据具体服务商的返回格式调整
-        # 假设返回格式类似OpenAI
+        result = response.json()
+        
+        print(f"Chat API 响应: {str(result)[:500]}")
+
+        # 尝试多种格式提取图片数据
+        # 格式1: 标准 OpenAI chat 格式
         if "choices" in result and len(result["choices"]) > 0:
             choice = result["choices"][0]
-            # 需要根据实际返回格式解析图片数据
-            # 这里是一个示例，实际需要调整
             if "message" in choice and "content" in choice["message"]:
                 content = choice["message"]["content"]
-                # 如果是base64
+                
+                # data URI 格式
                 if isinstance(content, str) and content.startswith("data:image"):
                     base64_data = content.split(",")[1]
                     return base64.b64decode(base64_data)
+                
+                # 纯 base64
+                if isinstance(content, str) and len(content) > 100:
+                    try:
+                        return base64.b64decode(content)
+                    except:
+                        pass
+                
+                # URL 格式
+                if isinstance(content, str) and content.startswith("http"):
+                    with force_ip_resolution(self.hostname, self.resolved_ip):
+                        img_response = requests.get(content, timeout=60)
+                    if img_response.status_code == 200:
+                        return img_response.content
+        
+        # 格式2: 类似 images API 的格式
+        if "data" in result and len(result["data"]) > 0:
+            image_data = result["data"][0]
+            
+            if "b64_json" in image_data:
+                return base64.b64decode(image_data["b64_json"])
+            
+            if "url" in image_data:
+                with force_ip_resolution(self.hostname, self.resolved_ip):
+                    img_response = requests.get(image_data["url"], timeout=60)
+                if img_response.status_code == 200:
+                    return img_response.content
 
         raise ValueError(
             "无法从 Chat API 响应中提取图片数据。\n"
