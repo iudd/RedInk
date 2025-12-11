@@ -17,7 +17,8 @@ RUN pip install uv
 COPY . .
 
 # 安装Python依赖
-RUN uv sync --frozen
+RUN uv sync --frozen || true
+RUN pip install -r requirements.txt
 
 # 安装Node.js和pnpm
 RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
