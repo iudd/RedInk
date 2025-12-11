@@ -855,6 +855,10 @@ def delete_custom_provider(provider_name):
         success = config_service.delete_custom_provider(provider_name)
         
         if success:
+            # 重置 ImageService 以应用新配置
+            from backend.services.image import reset_image_service
+            reset_image_service()
+
             return jsonify({
                 "success": True,
                 "message": "自定义服务商删除成功"
@@ -889,6 +893,10 @@ def set_active_provider(provider_name):
         success = config_service.set_active_provider(provider_name, service_type)
         
         if success:
+            # 重置 ImageService 以应用新配置
+            from backend.services.image import reset_image_service
+            reset_image_service()
+
             return jsonify({
                 "success": True,
                 "message": f"已设置 {provider_name} 为 {service_type} 服务商"
