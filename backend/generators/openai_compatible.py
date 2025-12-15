@@ -315,9 +315,7 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
                     "content": prompt
                 }
             ],
-            "max_tokens": 4096,
-            "temperature": 1.0,
-            "stream": True  # typli API 强制要求流式响应
+            "stream": True
         }
 
         # 使用强制 IP 解析避免 DNS 问题
