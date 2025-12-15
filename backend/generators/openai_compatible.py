@@ -347,6 +347,62 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
         print(f"Chat API 响应头: {dict(response.headers)}")
         print(f"Chat API 原始响应内容（前1000字符）: {response.text[:1000]}")
         
+# 检查是否是 SSE 流式响应
+        content_type = response.headers.get('Content-Type', '')
+        if 'text/event-stream' in content_type:
+            print("检测到 SSE 流式响应，开始解析...")
+            
+            # 解析 SSE 格式
+            import json
+            lines = response.text.strip().split('\n')
+            collected_content = []
+            
+            for line in lines:
+                line = line.strip()
+                if line.startswith('data: '):
+                    data_str = line[6:]  # 去掉 "data: " 前缀
+                    
+                    if data_str == '[DONE]':
+                        break
+                    
+                    try:
+                        chunk_data = json.loads(data_str)
+                        # 从 chunk 中提取内容
+                        if 'choices' in chunk_data and len(chunk_data['choices']) > 0:
+                            delta = chunk_data['choices'][0].get('delta', {})
+                            if 'content' in delta:
+                                collected_content.append(delta['content'])
+                    except:
+                        pass
+            
+            # 合并所有内容
+            full_content = ''.join(collected_content)
+            print(f"从 SSE 流中收集到的内容: {full_content[:500]}")
+            
+            if full_content:
+                # 尝试从内容中提取图片 URL
+                import re
+                markdown_pattern = r'!\[.*?\]\((https?://[^\)]+)\)'
+                matches = re.findall(markdown_pattern, full_content)
+                
+                if matches:
+                    image_url = matches[0]
+                    print(f"从 SSE 内容中提取到图片 URL: {image_url}")
+                    with force_ip_resolution(self.hostname, self.resolved_ip):
+                        img_response = requests.get(image_url, timeout=60)
+                    if img_response.status_code == 200:
+                        return img_response.content
+                    else:
+                        raise Exception(f"下载图片失败: {img_response.status_code}")
+            
+            # 如果没有内容，抛出错误
+            raise Exception(
+                f"SSE 流式响应中没有找到图片数据\n"
+                f"收集到的内容: {full_content[:500]}\n"
+                "可能原因：API 返回了空的流式响应"
+            )
+        
+        
         # 尝试解析 JSON
         try:
             result = response.json()
