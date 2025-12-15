@@ -342,10 +342,28 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
                 "建议：尝试将 endpoint_type 改为 'images' 或检查API密钥"
             )
 
-
-        result = response.json()
+        # 详细日志：查看响应状态
+        print(f"Chat API 响应状态码: {response.status_code}")
+        print(f"Chat API 响应头: {dict(response.headers)}")
+        print(f"Chat API 原始响应内容（前1000字符）: {response.text[:1000]}")
         
-        print(f"Chat API 响应: {str(result)[:500]}")
+        # 尝试解析 JSON
+        try:
+            result = response.json()
+        except Exception as json_error:
+            raise Exception(
+                f"Chat API 响应解析失败: {str(json_error)}\n"
+                f"状态码: {response.status_code}\n"
+                f"响应头: {dict(response.headers)}\n"
+                f"原始响应内容: {response.text[:1000]}\n"
+                "可能原因：\n"
+                "1. API 返回了空响应\n"
+                "2. API 返回了 HTML 错误页面\n"
+                "3. API 密钥无效或已过期\n"
+                "4. API 服务暂时不可用"
+            )
+        
+        print(f"Chat API 解析后的 JSON: {str(result)[:500]}")
 
         # 尝试多种格式提取图片数据
         # 格式1: 标准 OpenAI chat 格式
