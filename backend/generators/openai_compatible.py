@@ -317,12 +317,12 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
             ],
             "max_tokens": 4096,
             "temperature": 1.0,
-            "stream": False  # 禁用流式响应，确保返回完整 JSON
+            "stream": True  # typli API 强制要求流式响应
         }
 
         # 使用强制 IP 解析避免 DNS 问题
         with force_ip_resolution(self.hostname, self.resolved_ip):
-            response = requests.post(url, headers=headers, json=payload, timeout=180)
+            response = requests.post(url, headers=headers, json=payload, timeout=180, stream=True)
 
         if response.status_code != 200:
             error_detail = response.text[:500]
