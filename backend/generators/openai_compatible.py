@@ -125,12 +125,12 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
         self.default_model = config.get('model', 'dall-e-3')
 
         # API 端点类型: 'images' 或 'chat'
-        # 智能检测:某些 API (如 whisk) 使用 chat 端点生成图片
+        # 智能检测:某些 API (如 whisk, typli) 使用 chat 端点生成图片
         if 'endpoint_type' in config:
             self.endpoint_type = config['endpoint_type']
-        elif 'whisk' in self.base_url.lower():
+        elif 'whisk' in self.base_url.lower() or 'typli' in self.base_url.lower():
             self.endpoint_type = 'chat'
-            print(f"OpenAI Generator: 检测到 whisk API,自动使用 chat 端点")
+            print(f"OpenAI Generator: 检测到 whisk/typli API,自动使用 chat 端点")
         else:
             self.endpoint_type = 'images'
         
@@ -317,6 +317,7 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
             ],
             "max_tokens": 4096,
             "temperature": 1.0,
+            "stream": False,  # 禁用流式响应，确保返回完整 JSON
             # 尝试添加图片相关参数
             "response_format": {"type": "image"},
             "size": size
