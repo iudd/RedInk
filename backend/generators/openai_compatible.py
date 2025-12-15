@@ -317,10 +317,7 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
             ],
             "max_tokens": 4096,
             "temperature": 1.0,
-            "stream": False,  # 禁用流式响应，确保返回完整 JSON
-            # 尝试添加图片相关参数
-            "response_format": {"type": "image"},
-            "size": size
+            "stream": False  # 禁用流式响应，确保返回完整 JSON
         }
 
         # 使用强制 IP 解析避免 DNS 问题
