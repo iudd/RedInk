@@ -377,7 +377,8 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
             if full_content:
                 # 尝试从内容中提取图片 URL
                 import re
-                markdown_pattern = r'!\[.*?\]\((https?://[^\)]+)\)'
+                # 直接提取所有 https:// 开头的图片 URL
+                url_pattern = r'(https?://[^\s\)]+\.(?:png|jpg|jpeg|gif|webp))'
                 matches = re.findall(url_pattern, full_content, re.IGNORECASE)
                 
                 if matches:
@@ -408,7 +409,8 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
             # 尝试从纯文本中提取 Markdown 图片 URL
             import re
             text_content = response.text
-            markdown_pattern = r'!\[.*?\]\((https?://[^\)]+)\)'
+            # 直接提取所有 https:// 开头的图片 URL
+                url_pattern = r'(https?://[^\s\)]+\.(?:png|jpg|jpeg|gif|webp))'
             matches = re.findall(markdown_pattern, text_content)
             
             if matches:
@@ -452,7 +454,8 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
                 if isinstance(content, str) and "![" in content:
                     # 提取 markdown 中的图片 URL
                     import re
-                    markdown_pattern = r'!\[.*?\]\((https?://[^\)]+)\)'
+                    # 直接提取所有 https:// 开头的图片 URL
+                url_pattern = r'(https?://[^\s\)]+\.(?:png|jpg|jpeg|gif|webp))'
                     matches = re.findall(markdown_pattern, content)
                     if matches:
                         image_url = matches[0]
