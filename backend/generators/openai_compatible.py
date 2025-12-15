@@ -410,8 +410,8 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
             import re
             text_content = response.text
             # 直接提取所有 https:// 开头的图片 URL
-                url_pattern = r'(https?://[^\s\)]+\.(?:png|jpg|jpeg|gif|webp))'
-            matches = re.findall(markdown_pattern, text_content)
+            url_pattern = r'(https?://[^\s\)]+\.(?:png|jpg|jpeg|gif|webp))'
+            matches = re.findall(url_pattern, text_content, re.IGNORECASE)
             
             if matches:
                 image_url = matches[0]
