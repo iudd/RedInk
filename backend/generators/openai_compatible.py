@@ -358,6 +358,22 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
                     base64_data = content.split(",")[1]
                     return base64.b64decode(base64_data)
                 
+                # Markdown 格式: ![alt](url)
+                if isinstance(content, str) and "![" in content:
+                    # 提取 markdown 中的图片 URL
+                    import re
+                    markdown_pattern = r'!\[.*?\]\((https?://[^\)]+)\)'
+                    matches = re.findall(markdown_pattern, content)
+                    if matches:
+                        image_url = matches[0]
+                        print(f"从 Markdown 中提取到图片 URL: {image_url}")
+                        with force_ip_resolution(self.hostname, self.resolved_ip):
+                            img_response = requests.get(image_url, timeout=60)
+                        if img_response.status_code == 200:
+                            return img_response.content
+                        else:
+                            raise Exception(f"下载图片失败: {img_response.status_code}")
+                
                 # 纯 base64
                 if isinstance(content, str) and len(content) > 100:
                     try:
