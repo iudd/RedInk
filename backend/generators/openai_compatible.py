@@ -378,7 +378,7 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
                 # 尝试从内容中提取图片 URL
                 import re
                 markdown_pattern = r'!\[.*?\]\((https?://[^\)]+)\)'
-                matches = re.findall(markdown_pattern, full_content)
+                matches = re.findall(url_pattern, full_content, re.IGNORECASE)
                 
                 if matches:
                     image_url = matches[0]
