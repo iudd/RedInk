@@ -351,6 +351,26 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
         try:
             result = response.json()
         except Exception as json_error:
+            # JSON 解析失败，可能是纯文本 Markdown 响应
+            print(f"JSON 解析失败，尝试作为纯文本处理: {str(json_error)}")
+            
+            # 尝试从纯文本中提取 Markdown 图片 URL
+            import re
+            text_content = response.text
+            markdown_pattern = r'!\[.*?\]\((https?://[^\)]+)\)'
+            matches = re.findall(markdown_pattern, text_content)
+            
+            if matches:
+                image_url = matches[0]
+                print(f"从纯文本 Markdown 中提取到图片 URL: {image_url}")
+                with force_ip_resolution(self.hostname, self.resolved_ip):
+                    img_response = requests.get(image_url, timeout=60)
+                if img_response.status_code == 200:
+                    return img_response.content
+                else:
+                    raise Exception(f"下载图片失败: {img_response.status_code}")
+            
+            # 如果还是提取不到，抛出详细错误
             raise Exception(
                 f"Chat API 响应解析失败: {str(json_error)}\n"
                 f"状态码: {response.status_code}\n"
