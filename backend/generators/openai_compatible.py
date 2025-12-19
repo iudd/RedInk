@@ -375,16 +375,35 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
             print(f"从 SSE 流中收集到的内容: {full_content[:500]}")
             
             if full_content:
-                # 尝试从内容中提取图片 URL
+                # 尝试从内容中提取图片 URL（支持多种格式）
                 import re
-                # 直接提取所有 https:// 开头的图片 URL
-
-                url_pattern = r'(https?://[^\s\)]+\.(?:png|jpg|jpeg|gif|webp))'
-                matches = re.findall(url_pattern, full_content, re.IGNORECASE)
+                image_url = None
                 
+                # 方法1: 优先匹配 Markdown 格式: ![alt](url)
+                markdown_pattern = r'!\[.*?\]\((https?://[^\s\)]+)\)'
+                matches = re.findall(markdown_pattern, full_content, re.IGNORECASE)
                 if matches:
                     image_url = matches[0]
-                    print(f"从 SSE 内容中提取到图片 URL: {image_url}")
+                    print(f"从 SSE 内容中提取到图片 URL (Markdown格式): {image_url}")
+                
+                # 方法2: 如果没有匹配到，尝试提取带文件扩展名的 URL
+                if not image_url:
+                    url_pattern = r'(https?://[^\s\)]+\.(?:png|jpg|jpeg|gif|webp))'
+                    matches = re.findall(url_pattern, full_content, re.IGNORECASE)
+                    if matches:
+                        image_url = matches[0]
+                        print(f"从 SSE 内容中提取到图片 URL (带扩展名): {image_url}")
+                
+                # 方法3: 如果还没有，尝试匹配特定域名的文件路径（无扩展名）
+                if not image_url:
+                    # 匹配类似 whisk-2api.to2ai.workers.dev/file/xxx 的 URL
+                    special_pattern = r'(https?://[^\s\)]+/(?:file|image|img|media)/[a-zA-Z0-9\-]+)'
+                    matches = re.findall(special_pattern, full_content, re.IGNORECASE)
+                    if matches:
+                        image_url = matches[0]
+                        print(f"从 SSE 内容中提取到图片 URL (特殊格式): {image_url}")
+                
+                if image_url:
                     with force_ip_resolution(self.hostname, self.resolved_ip):
                         img_response = requests.get(image_url, timeout=60)
                     if img_response.status_code == 200:
@@ -407,17 +426,35 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
             # JSON 解析失败，可能是纯文本 Markdown 响应
             print(f"JSON 解析失败，尝试作为纯文本处理: {str(json_error)}")
             
-            # 尝试从纯文本中提取 Markdown 图片 URL
+            # 尝试从纯文本中提取图片 URL（支持多种格式）
             import re
             text_content = response.text
-            # 直接提取所有 https:// 开头的图片 URL
-
-            url_pattern = r'(https?://[^\s\)]+\.(?:png|jpg|jpeg|gif|webp))'
-            matches = re.findall(url_pattern, text_content, re.IGNORECASE)
+            image_url = None
             
+            # 方法1: 优先匹配 Markdown 格式: ![alt](url)
+            markdown_pattern = r'!\[.*?\]\((https?://[^\s\)]+)\)'
+            matches = re.findall(markdown_pattern, text_content, re.IGNORECASE)
             if matches:
                 image_url = matches[0]
-                print(f"从纯文本 Markdown 中提取到图片 URL: {image_url}")
+                print(f"从纯文本中提取到图片 URL (Markdown格式): {image_url}")
+            
+            # 方法2: 如果没有匹配到，尝试提取带文件扩展名的 URL
+            if not image_url:
+                url_pattern = r'(https?://[^\s\)]+\.(?:png|jpg|jpeg|gif|webp))'
+                matches = re.findall(url_pattern, text_content, re.IGNORECASE)
+                if matches:
+                    image_url = matches[0]
+                    print(f"从纯文本中提取到图片 URL (带扩展名): {image_url}")
+            
+            # 方法3: 如果还没有，尝试匹配特定域名的文件路径（无扩展名）
+            if not image_url:
+                special_pattern = r'(https?://[^\s\)]+/(?:file|image|img|media)/[a-zA-Z0-9\-]+)'
+                matches = re.findall(special_pattern, text_content, re.IGNORECASE)
+                if matches:
+                    image_url = matches[0]
+                    print(f"从纯文本中提取到图片 URL (特殊格式): {image_url}")
+            
+            if image_url:
                 with force_ip_resolution(self.hostname, self.resolved_ip):
                     img_response = requests.get(image_url, timeout=60)
                 if img_response.status_code == 200:
@@ -452,17 +489,36 @@ class OpenAICompatibleGenerator(ImageGeneratorBase):
                     base64_data = content.split(",")[1]
                     return base64.b64decode(base64_data)
                 
-                # Markdown 格式: ![alt](url)
-                if isinstance(content, str) and "![" in content:
-                    # 提取 markdown 中的图片 URL
+                # Markdown 格式: ![alt](url) 或其他 URL 格式
+                if isinstance(content, str) and ("![" in content or "http" in content):
+                    # 提取 markdown 或纯文本中的图片 URL（支持多种格式）
                     import re
-                    # 直接提取所有 https:// 开头的图片 URL
-
-                    url_pattern = r'(https?://[^\s\)]+\.(?:png|jpg|jpeg|gif|webp))'
-                    matches = re.findall(url_pattern, content)
+                    image_url = None
+                    
+                    # 方法1: 优先匹配 Markdown 格式: ![alt](url)
+                    markdown_pattern = r'!\[.*?\]\((https?://[^\s\)]+)\)'
+                    matches = re.findall(markdown_pattern, content, re.IGNORECASE)
                     if matches:
                         image_url = matches[0]
-                        print(f"从 Markdown 中提取到图片 URL: {image_url}")
+                        print(f"从 Markdown 中提取到图片 URL (Markdown格式): {image_url}")
+                    
+                    # 方法2: 如果没有匹配到，尝试提取带文件扩展名的 URL
+                    if not image_url:
+                        url_pattern = r'(https?://[^\s\)]+\.(?:png|jpg|jpeg|gif|webp))'
+                        matches = re.findall(url_pattern, content, re.IGNORECASE)
+                        if matches:
+                            image_url = matches[0]
+                            print(f"从 Markdown 中提取到图片 URL (带扩展名): {image_url}")
+                    
+                    # 方法3: 如果还没有，尝试匹配特定域名的文件路径（无扩展名）
+                    if not image_url:
+                        special_pattern = r'(https?://[^\s\)]+/(?:file|image|img|media)/[a-zA-Z0-9\-]+)'
+                        matches = re.findall(special_pattern, content, re.IGNORECASE)
+                        if matches:
+                            image_url = matches[0]
+                            print(f"从 Markdown 中提取到图片 URL (特殊格式): {image_url}")
+                    
+                    if image_url:
                         with force_ip_resolution(self.hostname, self.resolved_ip):
                             img_response = requests.get(image_url, timeout=60)
                         if img_response.status_code == 200:
